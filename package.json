@@ -1,0 +1,15 @@
+{
+  "name": "ossriff",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "collect": "bun run collector/index.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^6.0.3"
+  }
+}
