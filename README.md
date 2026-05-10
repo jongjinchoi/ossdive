@@ -1,15 +1,72 @@
 # ossriff
 
-To install dependencies:
+HN에 등장한 오픈소스 프로젝트를 자동 수집·큐레이션하는 도구. HN 50점 이상 + GitHub 100스타 이상 프로젝트를 6시간마다 SQLite에 저장하고, MCP 서버와 CLI로 조회합니다.
+
+## Setup
 
 ```bash
 bun install
 ```
 
-To run:
+## Collector
+
+HN Algolia API와 GitHub API로 데이터를 수집해 `ossriff.db`에 저장합니다.
 
 ```bash
-bun run index.ts
+# 기본 실행 (마지막 수집 시점부터 이어서)
+bun run collect
+
+# 특정 날짜부터 소급 수집
+COLLECT_SINCE=2025-01-01 bun run collect
 ```
 
-This project was created using `bun init` in bun v1.3.13. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+환경변수 (`.env.local`):
+```bash
+GITHUB_TOKEN=ghp_...     # rate limit 60→5,000/h
+COLLECT_SINCE=2025-01-01 # 첫 실행 시 소급 시작점
+```
+
+## MCP Server
+
+Claude Desktop / Claude Code에서 자연어로 수집된 프로젝트를 조회합니다.
+
+```bash
+bun run mcp
+```
+
+### Claude Desktop 설정
+
+`~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "ossriff": {
+      "command": "bun",
+      "args": ["/Users/jongjinchoi/Documents/projects/ossriff/mcp/index.ts"],
+      "env": {
+        "OSSRIFF_DB": "/Users/jongjinchoi/Documents/projects/ossriff/ossriff.db"
+      }
+    }
+  }
+}
+```
+
+> Phase 2 CLI 완성 후 `~/.ossriff/ossriff.db`로 자동 동기화되면 `OSSRIFF_DB` env 제거 가능.
+
+### 제공 Tools
+
+| Tool | 설명 |
+|---|---|
+| `list_projects` | 필터/정렬로 프로젝트 목록 조회 (`lang`, `min_stars`, `min_score`, `since`, `is_show_hn`, `sort_by`) |
+| `search_projects` | 키워드로 repo명/HN 제목/설명 검색 |
+| `get_project` | `"owner/repo"` 형식으로 특정 프로젝트 상세 조회 |
+| `get_stats` | 수집 현황 통계 (총 수, 언어 분포, 상위 starred) |
+
+사용 예시:
+```
+"이번 주 HN에서 Rust로 만든 프로젝트 뭐 올라왔어?"
+"스타 500개 이상이면서 Show HN인 것만 보여줘"
+"auth 관련 프로젝트 찾아줘"
+"ossriff에 수집된 프로젝트 통계 알려줘"
+```

@@ -4,12 +4,17 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "collect": "bun run collector/index.ts"
+    "collect": "bun run collector/index.ts",
+    "mcp": "bun run mcp/index.ts"
   },
   "devDependencies": {
     "@types/bun": "latest"
   },
   "peerDependencies": {
     "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.4.3"
   }
 }
