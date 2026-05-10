@@ -169,6 +169,9 @@ async function main() {
   setLastSince(db, now)
 
   console.log(`\nCollected: ${posts.length} HN posts → ${githubPosts.length} github repos → ${stored} stored`)
+
+  // Flush WAL to main DB file before upload to GitHub Releases
+  db.exec("PRAGMA wal_checkpoint(TRUNCATE)")
   db.close()
 }
 
