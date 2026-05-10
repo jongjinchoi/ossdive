@@ -1,5 +1,7 @@
 # DB file — distributed via GitHub Releases, not committed
 ossriff.db
+ossriff.db-shm
+ossriff.db-wal
 
 # dependencies (bun install)
 node_modules

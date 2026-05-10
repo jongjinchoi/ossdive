@@ -1,8 +1,58 @@
 # ossriff
 
-HN에 등장한 오픈소스 프로젝트를 자동 수집·큐레이션하는 도구. HN 50점 이상 + GitHub 100스타 이상 프로젝트를 6시간마다 SQLite에 저장하고, MCP 서버와 CLI로 조회합니다.
+HN에 등장한 오픈소스 프로젝트를 자동 수집·큐레이션하는 도구. HN 50점 이상 + GitHub 100스타 이상 프로젝트를 6시간마다 SQLite에 저장하고, CLI와 MCP 서버로 조회합니다.
 
-## Setup
+## Install
+
+```bash
+# Homebrew (recommended)
+brew install jongjinchoi/ossriff/ossriff
+
+# npm
+npm install -g ossriff
+
+# Run directly from source
+bun run cli/index.ts
+```
+
+## CLI Usage
+
+```bash
+# Interactive TUI (default)
+ossriff
+
+# List with filters
+ossriff list --lang rust --min-stars 500 --since 30d
+ossriff list --show-hn --sort stars
+ossriff list --min-score 200 --no-tui   # plain text output
+
+# Search
+ossriff search auth
+ossriff search "machine learning" -n 50
+
+# Get details
+ossriff get microsoft/VibeVoice
+
+# Stats
+ossriff stats
+
+# Sync DB manually
+ossriff update
+
+# Start MCP server
+ossriff mcp
+```
+
+### TUI Key Bindings
+
+| Key | Action |
+|---|---|
+| `↑ / ↓` (or `k/j`) | Move cursor |
+| `Tab` | Toggle GitHub / HN link mode |
+| `Enter` | Open selected link in browser |
+| `q` / `Esc` | Quit |
+
+## Setup (from source)
 
 ```bash
 bun install
@@ -32,11 +82,26 @@ Claude Desktop / Claude Code에서 자연어로 수집된 프로젝트를 조회
 
 ```bash
 bun run mcp
+# or via CLI:
+ossriff mcp
 ```
 
 ### Claude Desktop 설정
 
 `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "ossriff": {
+      "command": "ossriff",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+소스에서 실행 시:
 
 ```json
 {
@@ -51,8 +116,6 @@ bun run mcp
   }
 }
 ```
-
-> Phase 2 CLI 완성 후 `~/.ossriff/ossriff.db`로 자동 동기화되면 `OSSRIFF_DB` env 제거 가능.
 
 ### 제공 Tools
 
@@ -70,3 +133,7 @@ bun run mcp
 "auth 관련 프로젝트 찾아줘"
 "ossriff에 수집된 프로젝트 통계 알려줘"
 ```
+
+## DB Sync
+
+CLI는 실행 시 자동으로 GitHub Releases(`db-latest`)에서 최신 `ossriff.db`를 `~/.ossriff/ossriff.db`로 다운로드합니다. 1시간 이내 재실행 시에는 캐시를 사용합니다.

@@ -1,0 +1,192 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+
+      - run: bunx tsc --noEmit
+
+  build:
+    needs: typecheck
+    strategy:
+      matrix:
+        include:
+          - os:     macos-14
+            target: bun-darwin-arm64
+            name:   darwin-arm64
+          - os:     macos-13
+            target: bun-darwin-x64
+            name:   darwin-x64
+          - os:     ubuntu-latest
+            target: bun-linux-x64
+            name:   linux-x64
+          - os:     ubuntu-22.04-arm
+            target: bun-linux-arm64
+            name:   linux-arm64
+          - os:     windows-latest
+            target: bun-windows-x64
+            name:   windows-x64
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+
+      - name: Build binary
+        env:
+          PKG_VERSION: ${{ github.ref_name }}
+        run: |
+          bun run build.ts ${{ matrix.target }}
+          mv dist/bin/ossriff-${{ matrix.target }} dist/bin/ossriff
+        shell: bash
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ossriff-${{ matrix.name }}
+          path: dist/bin/ossriff*    # matches ossriff and ossriff.exe
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Create tarballs and compute SHA-256
+        run: |
+          mkdir -p dist/release
+          for d in artifacts/ossriff-*; do
+            name=$(basename "$d")
+            # Find binary (may be ossriff or ossriff.exe on Windows)
+            bin=$(find "$d" -maxdepth 1 -type f | head -1)
+            tar -czf "dist/release/${name}.tar.gz" -C "$d" "$(basename "$bin")"
+            (cd dist/release && shasum -a 256 "${name}.tar.gz") >> dist/release/SHA256SUMS
+          done
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/release/*.tar.gz
+            dist/release/SHA256SUMS
+
+  npm-publish:
+    needs: release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: bun install --frozen-lockfile
+
+      - name: Build npm bundle
+        env:
+          PKG_VERSION: ${{ github.ref_name }}
+        run: bun run build:npm
+
+      - run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  homebrew-bump:
+    needs: release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: jongjinchoi/homebrew-ossriff
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+      - name: Update Formula/ossriff.rb
+        env:
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+
+          # Download SHA256SUMS from the release
+          gh release download "$GITHUB_REF_NAME" \
+            --pattern SHA256SUMS \
+            --repo jongjinchoi/ossriff \
+            --output SHA256SUMS
+
+          SHA_DARWIN_ARM64=$(grep "ossriff-darwin-arm64.tar.gz" SHA256SUMS | awk '{print $1}')
+          SHA_DARWIN_X64=$(grep "ossriff-darwin-x64.tar.gz"    SHA256SUMS | awk '{print $1}')
+          SHA_LINUX_X64=$(grep  "ossriff-linux-x64.tar.gz"     SHA256SUMS | awk '{print $1}')
+          SHA_LINUX_ARM64=$(grep "ossriff-linux-arm64.tar.gz"  SHA256SUMS | awk '{print $1}')
+
+          mkdir -p Formula
+          cat > Formula/ossriff.rb << EOF
+          class Ossriff < Formula
+            desc "HN OSS curation CLI"
+            homepage "https://github.com/jongjinchoi/ossriff"
+            version "$VERSION"
+            license "MIT"
+
+            on_macos do
+              on_arm do
+                url "https://github.com/jongjinchoi/ossriff/releases/download/${GITHUB_REF_NAME}/ossriff-darwin-arm64.tar.gz"
+                sha256 "$SHA_DARWIN_ARM64"
+              end
+              on_intel do
+                url "https://github.com/jongjinchoi/ossriff/releases/download/${GITHUB_REF_NAME}/ossriff-darwin-x64.tar.gz"
+                sha256 "$SHA_DARWIN_X64"
+              end
+            end
+
+            on_linux do
+              on_arm do
+                url "https://github.com/jongjinchoi/ossriff/releases/download/${GITHUB_REF_NAME}/ossriff-linux-arm64.tar.gz"
+                sha256 "$SHA_LINUX_ARM64"
+              end
+              on_intel do
+                url "https://github.com/jongjinchoi/ossriff/releases/download/${GITHUB_REF_NAME}/ossriff-linux-x64.tar.gz"
+                sha256 "$SHA_LINUX_X64"
+              end
+            end
+
+            def install
+              bin.install Dir["*"].reject { |f| File.extname(f) == ".gz" }.first => "ossriff"
+            end
+
+            test do
+              system "\#{bin}/ossriff", "--version"
+            end
+          end
+          EOF
+
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name  "github-actions[bot]"
+          git add Formula/ossriff.rb
+          git commit -m "bump to $VERSION"
+          git push

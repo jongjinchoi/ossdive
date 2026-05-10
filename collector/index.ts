@@ -12,12 +12,14 @@ interface HNResponse {
   hitsPerPage: number
 }
 
-async function fetchHNPosts(since: number): Promise<HNPost[]> {
+const WINDOW_SECS = 7 * 86400  // 7-day chunks to stay under Algolia's 1,000-result cap
+
+async function fetchHNWindow(since: number, until: number): Promise<HNPost[]> {
   const all: HNPost[] = []
   let page = 0
 
   while (true) {
-    const url = `https://hn.algolia.com/api/v1/search_by_date?tags=story&numericFilters=points>=${HN_MIN_SCORE},created_at_i>${since}&hitsPerPage=200&page=${page}`
+    const url = `https://hn.algolia.com/api/v1/search_by_date?tags=story&numericFilters=points>=${HN_MIN_SCORE},created_at_i>${since},created_at_i<=${until}&hitsPerPage=200&page=${page}`
     const res = await fetch(url)
     if (!res.ok) throw new Error(`HN API error: ${res.status} ${res.statusText}`)
 
@@ -26,6 +28,28 @@ async function fetchHNPosts(since: number): Promise<HNPost[]> {
 
     if (page >= data.nbPages - 1) break
     page++
+  }
+
+  return all
+}
+
+async function fetchHNPosts(since: number): Promise<HNPost[]> {
+  const now = Math.floor(Date.now() / 1000)
+
+  if (now - since <= WINDOW_SECS) {
+    return fetchHNWindow(since, now)
+  }
+
+  // Backfill: split into 7-day windows so we never hit the 1,000-result cap
+  const all: HNPost[] = []
+  let windowStart = since
+  while (windowStart < now) {
+    const windowEnd = Math.min(windowStart + WINDOW_SECS, now)
+    const label = `${new Date(windowStart * 1000).toISOString().slice(0, 10)} ~ ${new Date(windowEnd * 1000).toISOString().slice(0, 10)}`
+    const posts = await fetchHNWindow(windowStart, windowEnd)
+    console.log(`  [window] ${label}: ${posts.length} posts`)
+    all.push(...posts)
+    windowStart = windowEnd
   }
 
   return all

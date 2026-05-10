@@ -57,7 +57,7 @@ export function getLastSince(db: Database): number {
 
 export function setLastSince(db: Database, since: number): void {
   db.prepare("INSERT INTO meta (key, value) VALUES ('last_since', $value) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run({
-    $value: String(since),
+    value: String(since),
   })
 }
 
@@ -90,19 +90,19 @@ const upsertSQL = `
 
 export function upsertProject(db: Database, project: Project): void {
   db.prepare(upsertSQL).run({
-    $github_url:     project.github_url,
-    $repo_name:      project.repo_name,
-    $description:    project.description,
-    $language:       project.language,
-    $license:        project.license,
-    $stars:          project.stars,
-    $forks:          project.forks,
-    $open_issues:    project.open_issues,
-    $last_commit_at: project.last_commit_at,
-    $hn_title:       project.hn_title,
-    $hn_score:       project.hn_score,
-    $hn_comments:    project.hn_comments,
-    $hn_url:         project.hn_url,
-    $is_show_hn:     project.is_show_hn ? 1 : 0,
+    github_url:     project.github_url,
+    repo_name:      project.repo_name,
+    description:    project.description,
+    language:       project.language,
+    license:        project.license,
+    stars:          project.stars,
+    forks:          project.forks,
+    open_issues:    project.open_issues,
+    last_commit_at: project.last_commit_at,
+    hn_title:       project.hn_title,
+    hn_score:       project.hn_score,
+    hn_comments:    project.hn_comments,
+    hn_url:         project.hn_url,
+    is_show_hn:     project.is_show_hn ? 1 : 0,
   })
 }

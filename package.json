@@ -1,20 +1,29 @@
 {
   "name": "ossriff",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
-  "private": true,
+  "bin": { "ossriff": "./dist/npm/index.js" },
+  "engines": { "node": ">=18" },
+  "files": ["dist/npm", "README.md", "LICENSE"],
   "scripts": {
-    "collect": "bun run collector/index.ts",
-    "mcp": "bun run mcp/index.ts"
+    "collect":   "bun run collector/index.ts",
+    "mcp":       "bun run mcp/index.ts",
+    "cli":       "bun run cli/index.ts",
+    "build:npm": "bun run build-npm.ts",
+    "build:bin": "bun run build.ts",
+    "prepack":   "bun run build-npm.ts"
   },
   "devDependencies": {
-    "@types/bun": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^6.0.3"
+    "@types/bun": "latest",
+    "@types/react": "^19.2.14",
+    "react-devtools-core": "^7.0.1"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "commander": "^14.0.3",
+    "ink": "^6.8.0",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
     "zod": "^4.4.3"
   }
 }
