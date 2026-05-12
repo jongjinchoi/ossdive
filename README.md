@@ -1,5 +1,9 @@
 # ossriff
 
+[![Homebrew](https://img.shields.io/badge/homebrew-jongjinchoi%2Fossriff-orange?logo=homebrew)](https://github.com/jongjinchoi/homebrew-ossriff)
+[![npm](https://img.shields.io/npm/v/ossriff)](https://www.npmjs.com/package/ossriff)
+[![Release](https://img.shields.io/github/v/release/jongjinchoi/ossriff)](https://github.com/jongjinchoi/ossriff/releases)
+
 HN에 등장한 오픈소스 프로젝트를 자동 수집·큐레이션하는 도구. HN 50점 이상 + GitHub 100스타 이상 프로젝트를 6시간마다 SQLite에 저장하고, CLI와 MCP 서버로 조회합니다.
 
 ## Install
