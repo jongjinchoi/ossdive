@@ -142,10 +142,3 @@ ossdive mcp
 ## DB Sync
 
 CLI는 실행 시 자동으로 GitHub Releases(`db-latest`)에서 최신 `ossdive.db`를 `~/.ossdive/ossdive.db`로 다운로드합니다. 1시간 이내 재실행 시에는 캐시를 사용합니다.
-
-## Migration from ossriff
-
-- CLI/MCP 첫 실행 시 `~/.ossriff/ossriff.db` → `~/.ossdive/ossdive.db`로 자동 이전됩니다.
-- 환경변수를 사용 중이라면 `OSSRIFF_DB` → `OSSDIVE_DB`로 변경하세요.
-- Homebrew: `brew uninstall ossriff && brew install jongjinchoi/ossdive/ossdive`
-- MCP 설정: `"ossriff"` 키와 `"command": "ossriff"`를 각각 `"ossdive"`로 변경하세요.
