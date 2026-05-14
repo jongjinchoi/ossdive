@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ossriff — Popup</title>
+  <style>
+    :root {
+      --bg:              #e8e8ed;
+      --popup-bg:        rgba(248, 248, 250, 0.98);
+      --popup-border:    rgba(255, 255, 255, 0.6);
+      --popup-shadow:
+        0 0 0 0.5px rgba(0,0,0,0.08),
+        0 20px 60px rgba(0,0,0,0.18),
+        0 6px 18px rgba(0,0,0,0.08),
+        inset 0 1px 0 rgba(255,255,255,0.65);
+
+      --section-bg:      rgba(255,255,255,0.72);
+      --divider:         rgba(0,0,0,0.10);
+      --item-hover:      rgba(0,122,255,0.05);
+      --item-divider:    rgba(0,0,0,0.09);
+
+      --label:           rgba(0,0,0,0.85);
+      --label-2:         rgba(60,60,67,0.6);
+      --label-3:         rgba(60,60,67,0.5);
+      --label-4:         rgba(60,60,67,0.18);
+      --accent:          #007AFF;
+
+      --input-bg:        rgba(0,0,0,0.05);
+      --input-border:    rgba(0,0,0,0.08);
+      --chip-bg:         rgba(0,0,0,0.09);
+      --chip-border:     rgba(0,0,0,0.08);
+      --chip-active-bg:  #007AFF;
+      --chip-active-fg:  #fff;
+
+      --toggle-bg:       rgba(0,0,0,0.06);
+      --toggle-active:   rgba(255,255,255,0.9);
+      --toggle-active-c: #007AFF;
+
+      --star:            #B8860B;
+      --hn:              #b83b00;
+      --hn-bg:           rgba(184,59,0,0.07);
+      --hn-border:       rgba(184,59,0,0.14);
+      --tag-bg:          rgba(0,0,0,0.045);
+      --tag-border:      rgba(0,0,0,0.08);
+      --green:           #34C759;
+      --scrollbar:       rgba(0,0,0,0.12);
+    }
+
+    [data-theme="dark"] {
+      --bg:              #1c1c1e;
+      --popup-bg:        rgba(30,30,34,0.88);
+      --popup-border:    rgba(255,255,255,0.12);
+      --popup-shadow:
+        0 0 0 0.5px rgba(0,0,0,0.4),
+        0 20px 60px rgba(0,0,0,0.7),
+        0 6px 18px rgba(0,0,0,0.45),
+        inset 0 1px 0 rgba(255,255,255,0.08);
+
+      --section-bg:      rgba(255,255,255,0.07);
+      --divider:         rgba(255,255,255,0.10);
+      --item-hover:      rgba(255,255,255,0.05);
+      --item-divider:    rgba(255,255,255,0.08);
+
+      --label:           rgba(255,255,255,0.85);
+      --label-2:         rgba(235,235,245,0.6);
+      --label-3:         rgba(235,235,245,0.45);
+      --label-4:         rgba(235,235,245,0.18);
+      --accent:          #0A84FF;
+
+      --input-bg:        rgba(255,255,255,0.07);
+      --input-border:    rgba(255,255,255,0.07);
+      --chip-bg:         rgba(255,255,255,0.10);
+      --chip-border:     rgba(255,255,255,0.10);
+      --chip-active-bg:  rgba(10,132,255,0.25);
+      --chip-active-fg:  #5AC8FF;
+
+      --toggle-bg:       rgba(255,255,255,0.07);
+      --toggle-active:   rgba(10,132,255,0.2);
+      --toggle-active-c: #5AC8FF;
+
+      --star:            rgba(255,214,10,0.6);
+      --hn:              rgba(255,159,10,0.65);
+      --hn-bg:           rgba(255,159,10,0.08);
+      --hn-border:       rgba(255,159,10,0.15);
+      --tag-bg:          rgba(255,255,255,0.07);
+      --tag-border:      rgba(255,255,255,0.1);
+      --green:           #30D158;
+      --scrollbar:       rgba(255,255,255,0.1);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 100%; height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      background: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      transition: background 0.3s;
+    }
+
+    /* ── Popup ── */
+    .popup {
+      width: 460px;
+      max-height: 580px;
+      background: var(--popup-bg);
+border: 0.5px solid var(--popup-border);
+      border-radius: 12px;
+      box-shadow: var(--popup-shadow);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+
+
+    /* ── Header ── */
+    .header {
+      padding: 14px 16px 12px;
+      background: var(--section-bg);
+      border-bottom: 0.5px solid var(--divider);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 1;
+    }
+
+    .title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--label);
+      letter-spacing: -0.3px;
+    }
+
+    .count {
+      font-size: 11px;
+      color: var(--label-3);
+      background: var(--tag-bg);
+      border: 0.5px solid var(--tag-border);
+      padding: 1px 7px;
+      border-radius: 10px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .spacer { flex: 1; }
+
+    .sync {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--label-3);
+    }
+
+    .sync-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 5px rgba(52,199,89,0.5);
+    }
+
+    .mode-toggle {
+      display: flex;
+      background: var(--toggle-bg);
+      border-radius: 7px;
+      padding: 2px;
+      gap: 1px;
+    }
+
+    .mbtn {
+      border: none;
+      background: none;
+      color: var(--label-3);
+      font-size: 11px;
+      font-family: inherit;
+      padding: 3px 9px;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .mbtn.active {
+      background: var(--toggle-active);
+      color: var(--toggle-active-c);
+      font-weight: 500;
+    }
+
+    .chip.show-hn-chip.active {
+      background: var(--hn-bg);
+      border-color: var(--hn-border);
+      color: var(--hn);
+    }
+
+    .more-btn {
+      border: 0.5px solid var(--chip-border);
+      background: var(--chip-bg);
+      color: var(--label-2);
+      font-size: 11px;
+      font-family: inherit;
+      padding: 3px 10px;
+      border-radius: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: all 0.12s;
+    }
+    .more-btn:hover { color: var(--label); }
+
+    .lang-dropdown {
+      position: absolute;
+      top: calc(100% + 4px);
+      right: 14px;
+      background: var(--popup-bg);
+      border: 0.5px solid var(--divider);
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.14);
+      min-width: 160px;
+      z-index: 100;
+      overflow: hidden;
+    }
+    .lang-dropdown-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 7px 12px;
+      font-size: 12px;
+      color: var(--label);
+      cursor: pointer;
+      border-bottom: 0.5px solid var(--item-divider);
+      transition: background 0.08s;
+    }
+    .lang-dropdown-item:last-child { border-bottom: none; }
+    .lang-dropdown-item:hover { background: var(--item-hover); }
+    .dlang-count { color: var(--label-3); font-size: 11px; }
+
+    .hn-link {
+      margin-left: auto;
+      font-size: 11px;
+      color: var(--hn);
+      text-decoration: none;
+      flex-shrink: 0;
+      padding-left: 8px;
+    }
+    .hn-link:hover { text-decoration: underline; }
+
+    /* ── Search ── */
+    .search-row {
+      padding: 9px 14px 8px;
+      background: var(--section-bg);
+      border-bottom: 0.5px solid var(--divider);
+      flex-shrink: 0;
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .search-wrap { position: relative; flex: 1; }
+
+    .search-ico {
+      position: absolute;
+      left: 9px; top: 50%;
+      transform: translateY(-50%);
+      color: var(--label-4);
+      pointer-events: none;
+    }
+
+    .search-input {
+      width: 100%;
+      background: var(--input-bg);
+      border: 0.5px solid var(--input-border);
+      border-radius: 8px;
+      padding: 6px 10px 6px 28px;
+      font-size: 12px;
+      font-family: inherit;
+      color: var(--label);
+      outline: none;
+      transition: border-color 0.12s, box-shadow 0.12s;
+    }
+    .search-input::placeholder { color: var(--label-4); }
+    .search-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--accent) 20%, transparent);
+    }
+
+    /* ── Filters ── */
+    .filters {
+      padding: 8px 14px;
+      background: var(--section-bg);
+      border-bottom: 0.5px solid var(--divider);
+      display: flex;
+      gap: 5px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 1;
+    }
+    .filters::-webkit-scrollbar { display: none; }
+
+    .chip {
+      border: 0.5px solid var(--chip-border);
+      background: var(--chip-bg);
+      color: var(--label-2);
+      font-size: 11px;
+      font-family: inherit;
+      padding: 3px 10px;
+      border-radius: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.12s;
+    }
+    .chip:hover { color: var(--label); }
+    .chip.active {
+      background: var(--chip-active-bg);
+      border-color: transparent;
+      color: var(--chip-active-fg);
+      font-weight: 500;
+    }
+
+    /* ── List ── */
+    .list {
+      flex: 1;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--scrollbar) transparent;
+      position: relative;
+      z-index: 1;
+    }
+    .list::-webkit-scrollbar { width: 3px; }
+    .list::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 2px; }
+
+    .item {
+      padding: 11px 16px 11px;
+      border-bottom: 0.5px solid var(--item-divider);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      transition: background 0.08s;
+    }
+    .item:hover { background: var(--item-hover); }
+    .item:last-child { border-bottom: none; }
+
+    /* Row 1: owner/repo (flex) + ★ stars (right) */
+    .row1 { display: flex; align-items: baseline; gap: 6px; }
+    .repo {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--label);
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      letter-spacing: -0.2px;
+    }
+    .show-hn-badge {
+      font-size: 9px;
+      font-weight: 500;
+      color: var(--hn);
+      background: var(--hn-bg);
+      border: 0.5px solid var(--hn-border);
+      padding: 1px 5px;
+      border-radius: 4px;
+      white-space: nowrap;
+      flex-shrink: 0;
+      letter-spacing: 0;
+      line-height: 1.6;
+      align-self: center;
+    }
+    .owner { color: var(--label-2); font-weight: 400; }
+    .spacer-flex { flex: 1; }
+    .stars {
+      font-size: 11px;
+      color: var(--label-3);
+      flex-shrink: 0;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Row 2: description */
+    .row2 { margin-top: 3px; }
+    .desc {
+      font-size: 12px;
+      color: var(--label-2);
+      display: block;
+    }
+
+    /* Row 3: lang · time · HN link */
+    .row3 { display: flex; align-items: center; margin-top: 5px; }
+    .m { font-size: 11px; color: var(--label-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .m-hn { color: var(--hn); }
+    .mdot { font-size: 11px; color: var(--label-4); padding: 0 4px; }
+
+    .empty { padding: 40px; text-align: center; font-size: 13px; color: var(--label-3); }
+
+    /* ── Footer ── */
+    .footer {
+      padding: 10px 16px;
+      background: var(--section-bg);
+      border-top: 0.5px solid var(--divider);
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 1;
+    }
+
+    .fcta {
+      border: 0.5px solid var(--tag-border);
+      background: var(--tag-bg);
+      color: var(--label-2);
+      font-size: 11px;
+      font-family: inherit;
+      padding: 4px 11px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .fcta:hover { color: var(--label); }
+
+    /* ── Theme toggle (mockup util) ── */
+    .theme-toggle {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      display: flex;
+      background: rgba(0,0,0,0.22);
+      backdrop-filter: blur(16px);
+      border: 0.5px solid rgba(255,255,255,0.12);
+      border-radius: 12px;
+      padding: 3px;
+      gap: 1px;
+    }
+    .tbtn {
+      border: none;
+      background: none;
+      color: rgba(255,255,255,0.45);
+      font-size: 11px;
+      font-family: inherit;
+      padding: 4px 12px;
+      border-radius: 9px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .tbtn.active {
+      background: rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.88);
+    }
+  </style>
+</head>
+<body>
+
+<div class="popup">
+  <!-- Header -->
+  <div class="header">
+    <span class="title">ossriff</span>
+    <div class="spacer"></div>
+    <button class="fcta">Open CLI ↗</button>
+  </div>
+
+  <!-- Search -->
+  <div class="search-row">
+    <div class="search-wrap">
+      <svg class="search-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+      <input class="search-input" id="searchInput" type="text" placeholder="Search projects…" oninput="render()">
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div style="position:relative; flex-shrink:0;">
+    <div class="filters" id="filters"></div>
+    <div class="lang-dropdown" id="langDropdown" style="display:none;"></div>
+  </div>
+
+  <!-- List -->
+  <div class="list" id="list"></div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div class="sync"><div class="sync-dot"></div><span>Synced 2h ago</span></div>
+  </div>
+</div>
+
+<!-- Light / Dark (mockup only) -->
+<div class="theme-toggle">
+  <button class="tbtn active" id="tLight" onclick="setTheme('light')">☀ Light</button>
+  <button class="tbtn" id="tDark" onclick="setTheme('dark')">☽ Dark</button>
+</div>
+
+<script>
+  const LANG_COLOR = {
+    Python:'#3572A5', Rust:'#dea584', TypeScript:'#3178c6',
+    Go:'#00ADD8', C:'#555555', 'C++':'#f34b7d', JavaScript:'#f1e05a',
+    Swift:'#F05138', Zig:'#ec915c', Dart:'#00B4AB', Shell:'#89e051',
+  };
+
+  const DATA = [
+    { owner:'ghostty-org',   repo:'ghostty',            desc:'Fast, feature-rich, and cross-platform terminal emulator using platform-native UI', lang:'Zig',        stars:24600, hn:2341, comments:842, show_hn:true,  hn_created_at:'2024-12-23T15:00:00.000Z', hn_url:'https://news.ycombinator.com/item?id=42460522' },
+    { owner:'astral-sh',     repo:'uv',                  desc:'An extremely fast Python package and project manager, written in Rust',             lang:'Rust',       stars:40200, hn:1876, comments:631, show_hn:true,  hn_created_at:'2026-04-28T09:00:00.000Z', hn_url:'https://news.ycombinator.com/item?id=38102821' },
+    { owner:'localsend',     repo:'localsend',            desc:'An open-source cross-platform alternative to AirDrop',                              lang:'Dart',       stars:42700, hn:1203, comments:384, show_hn:true,  hn_created_at:'2026-03-10T14:00:00.000Z', hn_url:'https://news.ycombinator.com/item?id=35300924' },
+    { owner:'microsoft',     repo:'TypeChat',             desc:'A library that makes it easy to build natural language interfaces using types',      lang:'TypeScript', stars:7800,  hn:892,  comments:312, show_hn:false, hn_created_at:'2026-05-09T06:00:00.000Z', hn_url:'https://news.ycombinator.com/item?id=36380423' },
+    { owner:'pocketbase',    repo:'pocketbase',           desc:'Open Source realtime backend in 1 file',                                            lang:'Go',         stars:31200, hn:847,  comments:274, show_hn:false, hn_created_at:'2025-11-20T11:00:00.000Z', hn_url:'https://news.ycombinator.com/item?id=32007771' },
+    { owner:'biomejs',       repo:'biome',                desc:'A toolchain for web projects — linter and formatter, written in Rust',              lang:'Rust',       stars:15400, hn:743,  comments:198, show_hn:false, hn_created_at:'2026-05-08T00:00:00.000Z', hn_url:'https://news.ycombinator.com/item?id=38243224' },
+    { owner:'charmbracelet', repo:'bubbletea',            desc:'A powerful little TUI framework for Go, based on The Elm Architecture',             lang:'Go',         stars:23100, hn:534,  comments:176, show_hn:true,  hn_created_at:'2026-02-14T08:00:00.000Z', hn_url:'https://news.ycombinator.com/item?id=30384243' },
+    { owner:'shadcn-ui',     repo:'ui',                   desc:'Beautifully designed components built with Radix UI and Tailwind CSS',              lang:'TypeScript', stars:62800, hn:567,  comments:203, show_hn:false, hn_created_at:'2026-05-06T12:00:00.000Z', hn_url:'https://news.ycombinator.com/item?id=36120012' },
+    { owner:'jart',          repo:'cosmopolitan',         desc:'C library for writing programs that run natively on Linux, Mac, Windows, FreeBSD',  lang:'C',          stars:14300, hn:489,  comments:147, show_hn:false, hn_created_at:'2025-07-03T10:00:00.000Z', hn_url:'https://news.ycombinator.com/item?id=37990972' },
+    { owner:'ggerganov',     repo:'llama.cpp',            desc:'LLM inference in C/C++ — fast, lightweight, no dependencies',                       lang:'C++',        stars:57000, hn:423,  comments:163, show_hn:false, hn_created_at:'2026-04-01T00:00:00.000Z', hn_url:'https://news.ycombinator.com/item?id=36217896' },
+    { owner:'anthropics',    repo:'anthropic-cookbook',   desc:'A collection of notebooks/recipes for getting started with the Anthropic API',      lang:'Python',     stars:8900,  hn:389,  comments:118, show_hn:false, hn_created_at:'2026-05-11T07:00:00.000Z', hn_url:'https://news.ycombinator.com/item?id=37897850' },
+    { owner:'nicbarker',     repo:'clay',                 desc:'High performance UI layout library in C',                                            lang:'C',          stars:6200,  hn:354,  comments:124, show_hn:true,  hn_created_at:'2025-10-15T16:00:00.000Z', hn_url:'https://news.ycombinator.com/item?id=41759497' },
+  ];
+
+  let filter = 'all';
+
+  function formatRelative(iso) {
+    if (!iso) return '—'
+    const diff = (Date.now() - new Date(iso).getTime()) / 1000
+    if (diff < 3600)     return Math.floor(diff / 60) + 'm'
+    if (diff < 86400)    return Math.floor(diff / 3600) + 'h'
+    if (diff < 604800)   return Math.floor(diff / 86400) + 'd'
+    if (diff < 2592000)  return Math.floor(diff / 604800) + 'w'
+    if (diff < 31536000) return Math.floor(diff / 2592000) + 'mo'
+    return Math.floor(diff / 31536000) + 'y'
+  }
+
+  function fmt(n) {
+    return n >= 1000 ? (n/1000).toFixed(1).replace(/\.0$/,'') + 'k' : String(n);
+  }
+
+  function render() {
+    const q = document.getElementById('searchInput').value.toLowerCase();
+    const items = DATA.filter(p => {
+      const mQ = !q || [p.repo, p.owner, p.desc].some(s => s.toLowerCase().includes(q));
+      const mF = filter === 'all'
+        || (filter === 'c' && (p.lang === 'C' || p.lang === 'C++'))
+        || p.lang.toLowerCase() === filter;
+      return mQ && mF;
+    });
+
+    const list = document.getElementById('list');
+    if (!items.length) {
+      list.innerHTML = '<div class="empty">No projects found</div>';
+      return;
+    }
+
+    list.innerHTML = items.map(p => {
+      const meta = [
+        `<span class="m">${p.lang}</span>`,
+        `<span class="m">${formatRelative(p.hn_created_at)}</span>`,
+      ].join('<span class="mdot">·</span>');
+
+      const badge = p.show_hn ? `<span class="show-hn-badge">Show HN</span>` : '';
+
+      return `
+        <div class="item" onclick="window.open('https://github.com/${p.owner}/${p.repo}','_blank')">
+          <div class="row1">
+            <span class="repo">${p.repo}</span>
+            ${badge}
+            <span class="spacer-flex"></span>
+            <span class="stars">★ ${fmt(p.stars)}</span>
+          </div>
+          <div class="row2"><span class="desc">${p.desc}</span></div>
+          <div class="row3">${meta}<a class="hn-link" href="${p.hn_url}" target="_blank" onclick="event.stopPropagation()">HN ${p.hn.toLocaleString()} points · ${p.comments.toLocaleString()} comments ↗</a></div>
+        </div>`;
+    }).join('');
+  }
+
+  const TOP_LANGS = 5;
+
+  function getLangCounts() {
+    const counts = {};
+    DATA.forEach(p => {
+      const lang = (p.lang === 'C' || p.lang === 'C++') ? 'C/C++' : p.lang;
+      counts[lang] = (counts[lang] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([lang, count]) => ({ lang, count }));
+  }
+
+  function langToKey(lang) {
+    return lang === 'C/C++' ? 'c' : lang.toLowerCase();
+  }
+
+  function renderFilters() {
+    const langCounts = getLangCounts();
+    const top  = langCounts.slice(0, TOP_LANGS);
+    const rest = langCounts.slice(TOP_LANGS);
+
+    let html = `<button class="chip${filter === 'all' ? ' active' : ''}" onclick="setFilter('all')">All</button>`;
+    top.forEach(({ lang, count }) => {
+      const key    = langToKey(lang);
+      const active = filter === key;
+      html += `<button class="chip${active ? ' active' : ''}" onclick="setFilter('${key}')">${lang} <span style="opacity:0.4">${count}</span></button>`;
+    });
+    if (rest.length > 0) {
+      html += `<button class="more-btn" id="moreBtn" onclick="toggleMoreDropdown()">+${rest.length} more ▾</button>`;
+      document.getElementById('langDropdown').innerHTML = rest.map(({ lang, count }) =>
+        `<div class="lang-dropdown-item" onclick="selectDropdownLang('${langToKey(lang)}')">${lang}<span class="dlang-count">${count}</span></div>`
+      ).join('');
+    }
+    document.getElementById('filters').innerHTML = html;
+  }
+
+  function toggleMoreDropdown() {
+    const dd = document.getElementById('langDropdown');
+    dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+  }
+
+  function selectDropdownLang(key) {
+    filter = key;
+    document.getElementById('langDropdown').style.display = 'none';
+    renderFilters();
+    render();
+  }
+
+  function setFilter(f) {
+    filter = f;
+    document.getElementById('langDropdown').style.display = 'none';
+    renderFilters();
+    render();
+  }
+
+  document.addEventListener('click', function(e) {
+    const dd  = document.getElementById('langDropdown');
+    const btn = document.getElementById('moreBtn');
+    if (dd && dd.style.display !== 'none' && btn && !btn.contains(e.target) && !dd.contains(e.target)) {
+      dd.style.display = 'none';
+    }
+  });
+
+  function setTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    document.getElementById('tLight').classList.toggle('active', t === 'light');
+    document.getElementById('tDark').classList.toggle('active', t === 'dark');
+  }
+
+  renderFilters();
+  render();
+</script>
+</body>
+</html>
