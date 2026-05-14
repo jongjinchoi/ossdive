@@ -5,3 +5,7 @@ export const listProjects = (opts: ListOpts = {}) =>
   invoke<Project[]>('list_projects', { sortBy: opts.sort_by, limit: opts.limit })
 
 export const getStats = () => invoke<Stats>('get_stats')
+
+export const openCli = () => invoke<void>('open_cli')
+
+export const quitApp = () => invoke<void>('quit_app')

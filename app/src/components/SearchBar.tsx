@@ -1,9 +1,34 @@
+import { useState, useEffect, useRef } from "react"
+
+const SORT_OPTIONS = [
+  { key: "hn_created_at",  label: "Newest" },
+  { key: "hn_score",       label: "HN Score" },
+  { key: "stars",          label: "Stars" },
+  { key: "last_commit_at", label: "Last Commit" },
+]
+
 interface SearchBarProps {
   value: string
   onChange: (v: string) => void
+  sort: string
+  onSortChange: (s: string) => void
 }
 
-export function SearchBar({ value, onChange }: SearchBarProps) {
+export function SearchBar({ value, onChange, sort, onSortChange }: SearchBarProps) {
+  const [sortOpen, setSortOpen] = useState(false)
+  const sortRef = useRef<HTMLDivElement>(null)
+  const sortLabel = SORT_OPTIONS.find((o) => o.key === sort)?.label ?? "Sort"
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (sortRef.current && !sortRef.current.contains(e.target as Node)) {
+        setSortOpen(false)
+      }
+    }
+    document.addEventListener("click", handleClick)
+    return () => document.removeEventListener("click", handleClick)
+  }, [])
+
   return (
     <div className="search-row">
       <div className="search-wrap">
@@ -18,6 +43,27 @@ export function SearchBar({ value, onChange }: SearchBarProps) {
           value={value}
           onChange={(e) => onChange(e.target.value)}
         />
+      </div>
+      <div className="sort-wrap" ref={sortRef}>
+        <button
+          className="sort-btn"
+          onClick={(e) => { e.stopPropagation(); setSortOpen((o) => !o) }}
+        >
+          {sortLabel} ▾
+        </button>
+        {sortOpen && (
+          <div className="sort-dropdown">
+            {SORT_OPTIONS.map((o) => (
+              <div
+                key={o.key}
+                className={`lang-dropdown-item${sort === o.key ? " active" : ""}`}
+                onClick={() => { onSortChange(o.key); setSortOpen(false) }}
+              >
+                {o.label}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

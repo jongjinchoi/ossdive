@@ -89,17 +89,28 @@ pub fn list_projects(
         Some("hn_created_at") => "hn_created_at",
         _ => "hn_score",
     };
-    let n = limit.unwrap_or(100).min(200);
-    let sql = format!(
-        "SELECT * FROM projects ORDER BY {} DESC LIMIT {}",
-        sort_col, n
-    );
+    let sql = match limit {
+        Some(n) => format!("SELECT * FROM projects ORDER BY {} DESC LIMIT {}", sort_col, n),
+        None    => format!("SELECT * FROM projects ORDER BY {} DESC", sort_col),
+    };
     let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
     let rows: rusqlite::Result<Vec<Project>> = stmt
         .query_map([], row_to_project)
         .map_err(|e| e.to_string())?
         .collect();
     rows.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn quit_app(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
+#[tauri::command]
+pub fn open_cli() {
+    let _ = std::process::Command::new("osascript")
+        .args(["-e", r#"tell application "Terminal" to do script "ossriff""#])
+        .spawn();
 }
 
 #[tauri::command]
@@ -120,8 +131,10 @@ pub fn get_stats(state: State<'_, DbState>) -> Result<Stats, String> {
 
     let mut stmt = conn
         .prepare(
-            "SELECT COALESCE(language, 'Unknown') as lang, COUNT(*) as count \
-             FROM projects GROUP BY lang ORDER BY count DESC LIMIT 10",
+            "SELECT CASE WHEN language IN ('C','C++') THEN 'C/C++' \
+                         ELSE COALESCE(language, 'Unknown') END as lang, \
+                    COUNT(*) as count \
+             FROM projects GROUP BY lang ORDER BY count DESC",
         )
         .map_err(|e| e.to_string())?;
     let by_language: rusqlite::Result<Vec<LangCount>> = stmt

@@ -1,9 +1,10 @@
 import { openDB, getLastSince, setLastSince, upsertProject } from "../src/db/schema.ts"
+import { DB_PATH as DEFAULT_DB_PATH, ensureConfigDir } from "../src/utils/fs.ts"
 import type { HNPost, GitHubRepo, Project } from "../src/types.ts"
 
 const HN_MIN_SCORE = 50
 const GH_MIN_STARS = 100
-const DB_PATH      = "ossriff.db"
+const DB_PATH      = process.env["OSSRIFF_DB"] ?? DEFAULT_DB_PATH
 
 interface HNResponse {
   hits:        HNPost[]
@@ -130,6 +131,7 @@ function toProject(post: HNPost, repo: GitHubRepo): Project {
 }
 
 async function main() {
+  await ensureConfigDir()
   const db    = openDB(DB_PATH)
   const since = getLastSince(db)
   const now   = Math.floor(Date.now() / 1000)

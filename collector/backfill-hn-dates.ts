@@ -1,7 +1,8 @@
 import { Database } from "bun:sqlite"
 import { openDB } from "../src/db/schema.ts"
+import { DB_PATH as DEFAULT_DB_PATH, ensureConfigDir } from "../src/utils/fs.ts"
 
-const DB_PATH = process.env["OSSRIFF_DB"] ?? "ossriff.db"
+const DB_PATH = process.env["OSSRIFF_DB"] ?? DEFAULT_DB_PATH
 
 function extractObjectId(hnUrl: string): string | null {
   const m = hnUrl.match(/[?&]id=(\d+)/)
@@ -17,6 +18,7 @@ async function fetchCreatedAt(objectId: string): Promise<string | null> {
 }
 
 async function main() {
+  await ensureConfigDir()
   const db = openDB(DB_PATH)
 
   const rows = db.prepare(

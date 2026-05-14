@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react"
 import type { Project } from "../lib/types"
 
-const TOP_LANGS = 5
+const TOP_LANGS = 2
 
 function langToKey(lang: string): string {
   return lang === "C/C++" ? "c" : lang.toLowerCase()
@@ -49,25 +49,27 @@ export function FilterChips({ projects, filter, onChange }: FilterChipsProps) {
 
   return (
     <div className="filters-wrap" ref={wrapRef}>
-      <div className="filters">
-        <button
-          className={`chip${filter === "all" ? " active" : ""}`}
-          onClick={() => select("all")}
-        >
-          All
-        </button>
-        {top.map(({ lang, count }) => {
-          const key = langToKey(lang)
-          return (
-            <button
-              key={key}
-              className={`chip${filter === key ? " active" : ""}`}
-              onClick={() => select(key)}
-            >
-              {lang} <span style={{ opacity: 0.4 }}>{count}</span>
-            </button>
-          )
-        })}
+      <div className="filters-row">
+        <div className="filters">
+          <button
+            className={`chip${filter === "all" ? " active" : ""}`}
+            onClick={() => select("all")}
+          >
+            All
+          </button>
+          {top.map(({ lang, count }) => {
+            const key = langToKey(lang)
+            return (
+              <button
+                key={key}
+                className={`chip${filter === key ? " active" : ""}`}
+                onClick={() => select(key)}
+              >
+                {lang} <span style={{ opacity: 0.4 }}>{count}</span>
+              </button>
+            )
+          })}
+        </div>
         {rest.length > 0 && (
           <button
             className="more-btn"

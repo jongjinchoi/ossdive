@@ -26,5 +26,6 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
-  }
+  },
+  "include": ["src", "collector", "cli", "mcp", "build.ts", "build-npm.ts"]
 }

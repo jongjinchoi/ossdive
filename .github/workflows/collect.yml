@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write         # needed to create/update GitHub Releases
+    env:
+      OSSRIFF_DB: ${{ github.workspace }}/ossriff.db
 
     steps:
       - uses: actions/checkout@v4
@@ -29,6 +31,9 @@ jobs:
         run: bun run collect
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Backfill hn_created_at (legacy rows)
+        run: bun run backfill:hn-dates
 
       - name: Upload DB to Releases
         run: |

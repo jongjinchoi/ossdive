@@ -1,4 +1,5 @@
 use tauri::{
+    menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Manager,
 };
@@ -17,9 +18,19 @@ pub fn run() {
             let db = db::open()?;
             app.manage(db::DbState(std::sync::Mutex::new(db)));
 
+            let quit = MenuItem::with_id(app, "quit", "Quit ossriff", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&quit])?;
+
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .icon_as_template(true)
+                .menu(&menu)
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| {
+                    if event.id.as_ref() == "quit" {
+                        app.exit(0);
+                    }
+                })
                 .on_tray_icon_event(|tray, event| {
                     if let TrayIconEvent::Click {
                         button: MouseButton::Left,
@@ -59,6 +70,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::list_projects,
             commands::get_stats,
+            commands::open_cli,
+            commands::quit_app,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

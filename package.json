@@ -6,7 +6,8 @@
   "engines": { "node": ">=18" },
   "files": ["dist/npm", "README.md", "LICENSE"],
   "scripts": {
-    "collect":   "bun run collector/index.ts",
+    "collect":              "bun run collector/index.ts",
+    "backfill:hn-dates":   "bun run collector/backfill-hn-dates.ts",
     "mcp":       "bun run mcp/index.ts",
     "cli":       "bun run cli/index.ts",
     "build:npm": "bun run build-npm.ts",

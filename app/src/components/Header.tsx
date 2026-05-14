@@ -1,13 +1,11 @@
-interface HeaderProps {
-  count: number
-}
+import { openCli } from "../lib/api"
 
-export function Header({ count }: HeaderProps) {
+export function Header() {
   return (
     <div className="header">
       <span className="title">ossriff</span>
-      {count > 0 && <span className="count">{count}</span>}
       <span className="spacer" />
+      <button className="fcta" onClick={() => openCli()}>Open CLI ↗</button>
     </div>
   )
 }

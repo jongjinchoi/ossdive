@@ -1,4 +1,5 @@
 import { formatRelative } from "../lib/format"
+import { quitApp } from "../lib/api"
 
 interface FooterProps {
   lastSyncedAt: string | null
@@ -13,6 +14,8 @@ export function Footer({ lastSyncedAt }: FooterProps) {
         <div className="sync-dot" />
         <span>{label}</span>
       </div>
+      <span className="spacer" />
+      <button className="fcta" onClick={() => quitApp()}>Quit</button>
     </div>
   )
 }

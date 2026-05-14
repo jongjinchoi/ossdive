@@ -17,6 +17,7 @@ export function ProjectItem({ project: p }: Props) {
   }
 
   function openHN(e: React.MouseEvent) {
+    e.preventDefault()
     e.stopPropagation()
     openUrl(p.hn_url)
   }

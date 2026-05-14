@@ -11,10 +11,11 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>([])
   const [query, setQuery] = useState("")
   const [filter, setFilter] = useState("all")
+  const [sort, setSort] = useState("hn_created_at")
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null)
 
   useEffect(() => {
-    listProjects({ limit: 100 }).then(setProjects).catch(console.error)
+    listProjects({}).then(setProjects).catch(console.error)
     getStats()
       .then((s) => setLastSyncedAt(s.collected_at_range?.last ?? null))
       .catch(console.error)
@@ -22,10 +23,10 @@ export default function App() {
 
   return (
     <div className="popup">
-      <Header count={projects.length} />
-      <SearchBar value={query} onChange={setQuery} />
+      <Header />
+      <SearchBar value={query} onChange={setQuery} sort={sort} onSortChange={setSort} />
       <FilterChips projects={projects} filter={filter} onChange={setFilter} />
-      <ProjectList projects={projects} query={query} filter={filter} />
+      <ProjectList projects={projects} query={query} filter={filter} sort={sort} />
       <Footer lastSyncedAt={lastSyncedAt} />
     </div>
   )

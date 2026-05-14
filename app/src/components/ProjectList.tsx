@@ -20,14 +20,38 @@ function matches(p: Project, query: string, filter: string): boolean {
   return matchesQuery && matchesFilter
 }
 
+function sortProjects(projects: Project[], sort: string): Project[] {
+  return [...projects].sort((a, b) => {
+    switch (sort) {
+      case "stars":
+        return b.stars - a.stars
+      case "hn_score":
+        return b.hn_score - a.hn_score
+      case "last_commit_at": {
+        const da = a.last_commit_at ?? ""
+        const db = b.last_commit_at ?? ""
+        return db.localeCompare(da)
+      }
+      case "hn_created_at":
+      default: {
+        const da = a.hn_created_at ?? ""
+        const db = b.hn_created_at ?? ""
+        return db.localeCompare(da)
+      }
+    }
+  })
+}
+
 interface ProjectListProps {
   projects: Project[]
   query: string
   filter: string
+  sort: string
 }
 
-export function ProjectList({ projects, query, filter }: ProjectListProps) {
-  const visible = projects.filter((p) => matches(p, query, filter))
+export function ProjectList({ projects, query, filter, sort }: ProjectListProps) {
+  const sorted = sortProjects(projects, sort)
+  const visible = sorted.filter((p) => matches(p, query, filter))
 
   if (!visible.length) {
     return (
