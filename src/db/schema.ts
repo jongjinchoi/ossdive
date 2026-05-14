@@ -24,19 +24,28 @@ export function openDB(path: string): Database {
       hn_comments    INTEGER,
       hn_url         TEXT,
       is_show_hn     BOOLEAN DEFAULT FALSE,
+      hn_created_at  DATETIME,
       collected_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
-    CREATE INDEX IF NOT EXISTS idx_projects_stars          ON projects(stars DESC);
-    CREATE INDEX IF NOT EXISTS idx_projects_last_commit_at ON projects(last_commit_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_projects_collected_at   ON projects(collected_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_projects_stars           ON projects(stars DESC);
+    CREATE INDEX IF NOT EXISTS idx_projects_last_commit_at  ON projects(last_commit_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_projects_collected_at    ON projects(collected_at DESC);
 
     CREATE TABLE IF NOT EXISTS meta (
       key   TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
   `)
+
+  try {
+    db.exec("ALTER TABLE projects ADD COLUMN hn_created_at DATETIME")
+  } catch {
+    // column already exists — idempotent
+  }
+
+  db.exec("CREATE INDEX IF NOT EXISTS idx_projects_hn_created_at ON projects(hn_created_at DESC)")
 
   return db
 }
@@ -65,11 +74,11 @@ const upsertSQL = `
   INSERT INTO projects (
     github_url, repo_name, description, language, license,
     stars, forks, open_issues, last_commit_at,
-    hn_title, hn_score, hn_comments, hn_url, is_show_hn
+    hn_title, hn_score, hn_comments, hn_url, is_show_hn, hn_created_at
   ) VALUES (
     $github_url, $repo_name, $description, $language, $license,
     $stars, $forks, $open_issues, $last_commit_at,
-    $hn_title, $hn_score, $hn_comments, $hn_url, $is_show_hn
+    $hn_title, $hn_score, $hn_comments, $hn_url, $is_show_hn, $hn_created_at
   )
   ON CONFLICT(github_url) DO UPDATE SET
     repo_name      = excluded.repo_name,
@@ -85,6 +94,7 @@ const upsertSQL = `
     hn_comments    = excluded.hn_comments,
     hn_url         = excluded.hn_url,
     is_show_hn     = excluded.is_show_hn,
+    hn_created_at  = excluded.hn_created_at,
     updated_at     = CURRENT_TIMESTAMP
 `
 
@@ -104,5 +114,6 @@ export function upsertProject(db: Database, project: Project): void {
     hn_comments:    project.hn_comments,
     hn_url:         project.hn_url,
     is_show_hn:     project.is_show_hn ? 1 : 0,
+    hn_created_at:  project.hn_created_at,
   })
 }

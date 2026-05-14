@@ -46,6 +46,7 @@ function printDetail(p: Project): void {
     `HN Title    : ${p.hn_title}`,
     `HN Score    : ${p.hn_score}`,
     `HN Comments : ${p.hn_comments}`,
+    `HN Posted   : ${p.hn_created_at ?? "—"}`,
     `Show HN     : ${p.is_show_hn ? "Yes" : "No"}`,
     ``,
     `GitHub : ${p.github_url}`,
@@ -100,7 +101,7 @@ program
   .option("-c, --min-score <n>",  "Minimum HN score",        parseInt)
   .option("--since <range>",      '"7d" / "30d" / "1y" / ISO date')
   .option("--show-hn",            "Show HN posts only")
-  .option("--sort <field>",       "hn_score | stars | last_commit_at | collected_at", "hn_score")
+  .option("--sort <field>",       "hn_score | stars | last_commit_at | collected_at | hn_created_at", "hn_score")
   .option("-n, --limit <n>",      "Max results (default: 50)", parseInt, 50)
   .option("--no-tui",             "Plain text output (always on when not a TTY)")
   .action(async (opts) => {

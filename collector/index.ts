@@ -125,6 +125,7 @@ function toProject(post: HNPost, repo: GitHubRepo): Project {
     hn_comments:    post.num_comments,
     hn_url:         `https://news.ycombinator.com/item?id=${post.objectID}`,
     is_show_hn:     post._tags.includes("show_hn"),
+    hn_created_at:  post.created_at,
   }
 }
 

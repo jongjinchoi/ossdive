@@ -7,7 +7,7 @@ export interface ListProjectsOpts {
   minScore?:   number
   since?:      string   // "7d", "30d", "1y", or ISO date "2025-01-01"
   isShowHn?:   boolean
-  sortBy?:     "hn_score" | "stars" | "last_commit_at" | "collected_at"
+  sortBy?:     "hn_score" | "stars" | "last_commit_at" | "collected_at" | "hn_created_at"
   limit?:      number
 }
 
@@ -58,6 +58,7 @@ function rowToProject(row: Record<string, unknown>): Project {
     hn_comments:   row["hn_comments"] as number,
     hn_url:        row["hn_url"] as string,
     is_show_hn:    Boolean(row["is_show_hn"]),
+    hn_created_at: row["hn_created_at"] as string | null,
     collected_at:  row["collected_at"] as string | undefined,
     updated_at:    row["updated_at"] as string | undefined,
   }

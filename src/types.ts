@@ -39,6 +39,7 @@ export interface Project {
   hn_comments: number
   hn_url: string
   is_show_hn: boolean
+  hn_created_at: string | null
   collected_at?: string
   updated_at?: string
 }

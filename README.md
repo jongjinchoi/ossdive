@@ -125,7 +125,7 @@ ossriff mcp
 
 | Tool | 설명 |
 |---|---|
-| `list_projects` | 필터/정렬로 프로젝트 목록 조회 (`lang`, `min_stars`, `min_score`, `since`, `is_show_hn`, `sort_by`) |
+| `list_projects` | 필터/정렬로 프로젝트 목록 조회 (`lang`, `min_stars`, `min_score`, `since`, `is_show_hn`, `sort_by`: `hn_score`\|`stars`\|`last_commit_at`\|`collected_at`\|`hn_created_at`) |
 | `search_projects` | 키워드로 repo명/HN 제목/설명 검색 |
 | `get_project` | `"owner/repo"` 형식으로 특정 프로젝트 상세 조회 |
 | `get_stats` | 수집 현황 통계 (총 수, 언어 분포, 상위 starred) |
@@ -136,6 +136,7 @@ ossriff mcp
 "스타 500개 이상이면서 Show HN인 것만 보여줘"
 "auth 관련 프로젝트 찾아줘"
 "ossriff에 수집된 프로젝트 통계 알려줘"
+"이번 주 HN에 올라온 Rust 프로젝트 HN 포스트 날짜 순으로 보여줘"
 ```
 
 ## DB Sync
