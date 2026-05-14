@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite"
 import { openDB } from "../src/db/schema.ts"
 import { DB_PATH as DEFAULT_DB_PATH, ensureConfigDir } from "../src/utils/fs.ts"
 
-const DB_PATH = process.env["OSSRIFF_DB"] ?? DEFAULT_DB_PATH
+const DB_PATH = process.env["OSSDIVE_DB"] ?? DEFAULT_DB_PATH
 
 function extractObjectId(hnUrl: string): string | null {
   const m = hnUrl.match(/[?&]id=(\d+)/)

@@ -18,7 +18,7 @@ pub fn run() {
             let db = db::open()?;
             app.manage(db::DbState(std::sync::Mutex::new(db)));
 
-            let quit = MenuItem::with_id(app, "quit", "Quit ossriff", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "Quit ossdive", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&quit])?;
 
             TrayIconBuilder::new()

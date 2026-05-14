@@ -1,6 +1,6 @@
 import { CONFIG_DIR, DB_PATH, META_PATH, ensureConfigDir, fileExists, readJson, writeJson } from "../src/utils/fs.ts"
 
-const REPO = "jongjinchoi/ossriff"
+const REPO = "jongjinchoi/ossdive"
 const TAG  = "db-latest"
 const TTL  = 60 * 60 * 1000  // 1h in ms
 
@@ -53,9 +53,9 @@ export async function syncDb({ force = false }: { force?: boolean } = {}): Promi
   status: SyncStatus
   path:   string
 }> {
-  // Dev override: OSSRIFF_DB env var bypasses sync entirely (same as MCP server pattern)
-  if (process.env["OSSRIFF_DB"]) {
-    return { status: "cached", path: process.env["OSSRIFF_DB"] }
+  // Dev override: OSSDIVE_DB env var bypasses sync entirely (same as MCP server pattern)
+  if (process.env["OSSDIVE_DB"]) {
+    return { status: "cached", path: process.env["OSSDIVE_DB"] }
   }
 
   await ensureConfigDir()
@@ -68,8 +68,8 @@ export async function syncDb({ force = false }: { force?: boolean } = {}): Promi
 
   try {
     const release = await fetchRelease()
-    const asset   = release.assets.find(a => a.name === "ossriff.db")
-    if (!asset) throw new Error("ossriff.db asset not found in db-latest release")
+    const asset   = release.assets.find(a => a.name === "ossdive.db")
+    if (!asset) throw new Error("ossdive.db asset not found in db-latest release")
 
     // Same version as cached: update syncedAt timestamp, skip download
     if (!force && meta?.updatedAt === asset.updated_at && (await fileExists(DB_PATH))) {

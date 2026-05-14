@@ -1,8 +1,8 @@
 {
-  "name": "ossriff",
-  "version": "0.2.0",
+  "name": "ossdive",
+  "version": "0.3.0",
   "type": "module",
-  "bin": { "ossriff": "./dist/npm/index.js" },
+  "bin": { "ossdive": "./dist/npm/index.js" },
   "engines": { "node": ">=18" },
   "files": ["dist/npm", "README.md", "LICENSE"],
   "scripts": {

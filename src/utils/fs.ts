@@ -1,13 +1,23 @@
-import { mkdir, readFile, writeFile, access } from "node:fs/promises"
+import { mkdir, readFile, writeFile, access, rename } from "node:fs/promises"
 import { homedir } from "node:os"
 import { join } from "node:path"
 
-export const CONFIG_DIR = join(homedir(), ".ossriff")
-export const DB_PATH    = join(CONFIG_DIR, "ossriff.db")
+export const CONFIG_DIR = join(homedir(), ".ossdive")
+export const DB_PATH    = join(CONFIG_DIR, "ossdive.db")
 export const META_PATH  = join(CONFIG_DIR, "sync-meta.json")
+
+const LEGACY_DB_PATH   = join(homedir(), ".ossriff", "ossriff.db")
+const LEGACY_META_PATH = join(homedir(), ".ossriff", "sync-meta.json")
 
 export async function ensureConfigDir(): Promise<void> {
   await mkdir(CONFIG_DIR, { recursive: true })
+  // One-shot migration from ~/.ossriff (idempotent)
+  if (await fileExists(LEGACY_DB_PATH) && !(await fileExists(DB_PATH))) {
+    await rename(LEGACY_DB_PATH, DB_PATH)
+  }
+  if (await fileExists(LEGACY_META_PATH) && !(await fileExists(META_PATH))) {
+    await rename(LEGACY_META_PATH, META_PATH)
+  }
 }
 
 export async function fileExists(path: string): Promise<boolean> {

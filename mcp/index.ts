@@ -9,10 +9,13 @@ import { listProjects, searchProjects, getProject, getStats } from "../src/db/qu
 import type { Project, } from "../src/types.ts"
 
 function resolveDbPath(): string {
-  if (process.env["OSSRIFF_DB"]) return process.env["OSSRIFF_DB"]
-  const home = join(homedir(), ".ossriff", "ossriff.db")
-  if (existsSync(home)) return home
-  return "ossriff.db"
+  if (process.env["OSSDIVE_DB"]) return process.env["OSSDIVE_DB"]
+  const newPath = join(homedir(), ".ossdive", "ossdive.db")
+  if (existsSync(newPath)) return newPath
+  // Legacy fallback for users who haven't run CLI yet
+  const legacy = join(homedir(), ".ossriff", "ossriff.db")
+  if (existsSync(legacy)) return legacy
+  return "ossdive.db"
 }
 
 // ── Formatters ────────────────────────────────────────────────────────────────
@@ -69,7 +72,7 @@ function formatProject(p: Project): string {
 
 function formatStats(stats: ReturnType<typeof getStats>): string {
   const lines = [
-    `# ossriff Stats`,
+    `# ossdive Stats`,
     ``,
     `Total projects : ${stats.total.toLocaleString()}`,
     `Show HN        : ${stats.showHnCount.toLocaleString()}`,
@@ -98,9 +101,9 @@ function formatStats(stats: ReturnType<typeof getStats>): string {
 // ── MCP Server ────────────────────────────────────────────────────────────────
 
 const server = new McpServer(
-  { name: "ossriff", version: "0.1.0" },
+  { name: "ossdive", version: "0.1.0" },
   {
-    instructions: `ossriff is an HN OSS project curator. Use these tools to explore curated open-source projects discovered on Hacker News.
+    instructions: `ossdive is an HN OSS project curator. Use these tools to explore curated open-source projects discovered on Hacker News.
 
 - list_projects: Browse with filters (language, stars, HN score, date, Show HN)
 - search_projects: Full-text search across repo names, HN titles, and descriptions
@@ -181,7 +184,7 @@ server.registerTool(
 server.registerTool(
   "get_stats",
   {
-    description: "Get an overview of the ossriff collection: total count, language distribution, top starred repos, and collection date range.",
+    description: "Get an overview of the ossdive collection: total count, language distribution, top starred repos, and collection date range.",
     inputSchema: {},
   },
   async () => {

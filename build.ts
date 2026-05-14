@@ -23,7 +23,7 @@ if (buildTargets.length === 0) {
 }
 
 for (const t of buildTargets) {
-  const outfile = `./dist/bin/ossriff-${t}`
+  const outfile = `./dist/bin/ossdive-${t}`
   console.log(`Building ${t}…`)
 
   const result = await Bun.build({

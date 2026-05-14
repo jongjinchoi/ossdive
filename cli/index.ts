@@ -88,7 +88,7 @@ function printSyncStatus(status: string): void {
 // ── Program ───────────────────────────────────────────────────────────────────
 
 const program = new Command()
-  .name("ossriff")
+  .name("ossdive")
   .description("HN OSS curation CLI — browse open-source projects from Hacker News")
   .version(VERSION)
 
@@ -108,7 +108,7 @@ program
     const { path, status } = await syncDb()
 
     if (status === "missing") {
-      console.error("Error: could not download ossriff.db. Check your internet connection.")
+      console.error("Error: could not download ossdive.db. Check your internet connection.")
       process.exit(1)
     }
 
@@ -148,7 +148,7 @@ program
   .action(async (query, opts) => {
     const { path, status } = await syncDb()
     if (status === "missing") {
-      console.error("Error: could not download ossriff.db.")
+      console.error("Error: could not download ossdive.db.")
       process.exit(1)
     }
     printSyncStatus(status)
@@ -165,7 +165,7 @@ program
   .action(async (repo: string) => {
     const { path, status } = await syncDb()
     if (status === "missing") {
-      console.error("Error: could not download ossriff.db.")
+      console.error("Error: could not download ossdive.db.")
       process.exit(1)
     }
     printSyncStatus(status)
@@ -186,7 +186,7 @@ program
   .action(async () => {
     const { path, status } = await syncDb()
     if (status === "missing") {
-      console.error("Error: could not download ossriff.db.")
+      console.error("Error: could not download ossdive.db.")
       process.exit(1)
     }
     printSyncStatus(status)
@@ -201,7 +201,7 @@ program
   .command("update")
   .description("Force sync the local DB from GitHub Releases now")
   .action(async () => {
-    process.stderr.write("Syncing ossriff.db from GitHub Releases…\n")
+    process.stderr.write("Syncing ossdive.db from GitHub Releases…\n")
     const { status, path } = await syncDb({ force: true })
     printSyncStatus(status)
     console.log(path)

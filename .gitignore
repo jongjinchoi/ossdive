@@ -1,7 +1,7 @@
 # DB file — distributed via GitHub Releases, not committed
-ossriff.db
-ossriff.db-shm
-ossriff.db-wal
+ossdive.db
+ossdive.db-shm
+ossdive.db-wal
 
 # dependencies (bun install)
 node_modules

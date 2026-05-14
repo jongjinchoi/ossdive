@@ -4,7 +4,7 @@ import type { HNPost, GitHubRepo, Project } from "../src/types.ts"
 
 const HN_MIN_SCORE = 50
 const GH_MIN_STARS = 100
-const DB_PATH      = process.env["OSSRIFF_DB"] ?? DEFAULT_DB_PATH
+const DB_PATH      = process.env["OSSDIVE_DB"] ?? DEFAULT_DB_PATH
 
 interface HNResponse {
   hits:        HNPost[]
@@ -84,7 +84,7 @@ function extractRepoPath(rawUrl: string): string | null {
 async function fetchGitHubRepo(repoPath: string): Promise<GitHubRepo | null> {
   const headers: Record<string, string> = {
     "Accept":                 "application/vnd.github+json",
-    "User-Agent":             "ossriff-collector",
+    "User-Agent":             "ossdive-collector",
     "X-GitHub-Api-Version":   "2022-11-28",
   }
   if (process.env["GITHUB_TOKEN"]) {

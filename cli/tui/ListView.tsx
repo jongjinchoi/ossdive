@@ -125,7 +125,7 @@ export function ListView({ projects }: Props) {
     <Box flexDirection="column">
       {/* Header bar */}
       <Box marginBottom={1}>
-        <Text color={theme.primary} bold>ossriff  </Text>
+        <Text color={theme.primary} bold>ossdive  </Text>
         <Text color={theme.muted}>{projects.length} projects  </Text>
         <Text color={theme.accent}>Tab</Text>
         <Text color={theme.muted}> → open {viewLabel}  </Text>

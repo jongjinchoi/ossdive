@@ -109,7 +109,7 @@ pub fn quit_app(app: tauri::AppHandle) {
 #[tauri::command]
 pub fn open_cli() {
     let _ = std::process::Command::new("osascript")
-        .args(["-e", r#"tell application "Terminal" to do script "ossriff""#])
+        .args(["-e", r#"tell application "Terminal" to do script "ossdive""#])
         .spawn();
 }
 

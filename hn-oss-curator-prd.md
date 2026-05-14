@@ -1,4 +1,4 @@
-# PRD: ossriff
+# PRD: ossdive
 **Product Requirements Document**
 버전: 0.2 | 작성일: 2026-05-10 | 상태: 초안
 
@@ -18,7 +18,7 @@
 ### 1.3 목표
 - HN에 올라온 오픈소스 프로젝트를 6시간마다 자동 수집
 - CLI와 MCP 서버로 조회 (개인/소규모 팀 사용)
-- 팀원 컴퓨터에 `brew install ossriff`로 간단히 설치
+- 팀원 컴퓨터에 `brew install ossdive`로 간단히 설치
 - 이 프로젝트 자체도 오픈소스로 공개
 
 ---
@@ -65,7 +65,7 @@
 ## 4. 제품 구성 (Product Components)
 
 ```
-ossriff/
+ossdive/
 ├── collector/     # 데이터 수집 봇 (TypeScript + Bun)
 ├── cli/           # 터미널 조회 도구 (TypeScript + Bun)
 ├── mcp/           # MCP 서버 (TypeScript + Bun)
@@ -87,7 +87,7 @@ ossriff/
 
 **자동화**
 - GitHub Actions 크론잡으로 운영 (무료 티어 내에서 동작)
-- 수집 완료 후 `ossriff.db`를 GitHub Releases에 업로드
+- 수집 완료 후 `ossdive.db`를 GitHub Releases에 업로드
 - 수집 실패 시 로그 기록 및 재시도 로직
 
 **API 사용**
@@ -101,8 +101,8 @@ ossriff/
 ### 5.2 CLI (터미널 도구)
 
 **자동 동기화**
-- 실행 시 GitHub Releases에서 최신 `ossriff.db` 버전 확인
-- 새 버전이 있으면 자동 다운로드 (`~/.ossriff/ossriff.db` 갱신)
+- 실행 시 GitHub Releases에서 최신 `ossdive.db` 버전 확인
+- 새 버전이 있으면 자동 다운로드 (`~/.ossdive/ossdive.db` 갱신)
 - 이후 로컬 SQLite에서 조회 (인터넷 연결 불필요)
 
 **필수 기능**
@@ -110,11 +110,11 @@ ossriff/
 - 필터 옵션: `--lang python`, `--min-stars 500`, `--since 7d`
 - 결과를 테이블 형태로 출력 (TUI)
 - 선택한 프로젝트의 GitHub 또는 HN 링크 브라우저로 열기
-- `ossriff update` — 수동 동기화 명령어
+- `ossdive update` — 수동 동기화 명령어
 
 **설치**
 ```bash
-brew install ossriff
+brew install ossdive
 ```
 
 ---
@@ -123,7 +123,7 @@ brew install ossriff
 
 **필수 기능**
 - Claude에서 자연어로 수집된 프로젝트 조회
-- 로컬 SQLite(`~/.ossriff/ossriff.db`)에서 직접 읽기
+- 로컬 SQLite(`~/.ossdive/ossdive.db`)에서 직접 읽기
 
 **제공 Tool 목록**
 | Tool | 기능 |
@@ -148,7 +148,7 @@ brew install ossriff
 - 메뉴바 상주 (항상 접근 가능)
 - 클릭 시 최근 10개 프로젝트 목록 표시
 - 각 항목 클릭 → GitHub 또는 HN 링크로 바로 이동
-- 백그라운드에서 6시간마다 자동 동기화 (`ossriff.db` 갱신)
+- 백그라운드에서 6시간마다 자동 동기화 (`ossdive.db` 갱신)
 
 **알림 기능**
 - 동기화 후 새 프로젝트가 있으면 macOS 알림
@@ -214,7 +214,7 @@ CREATE TABLE projects (
 
 ### 공유 모듈 구조
 ```
-ossriff/
+ossdive/
 └── src/
     ├── types.ts    # HNPost, GitHubRepo, Project 타입 — 전체 공유
     ├── db/         # SQLite 스키마 + 쿼리 — collector/cli/mcp 공유
@@ -230,14 +230,14 @@ ossriff/
 - [ ] GitHub API 연동 및 메타데이터 수집
 - [ ] SQLite 저장 로직 (Bun.sqlite)
 - [ ] GitHub Actions 크론잡 설정 (6시간마다)
-- [ ] GitHub Releases에 ossriff.db 업로드
+- [ ] GitHub Releases에 ossdive.db 업로드
 
 ### Phase 2 — CLI + MCP
-- [ ] 자동 동기화 (GitHub Releases → `~/.ossriff/ossriff.db`)
+- [ ] 자동 동기화 (GitHub Releases → `~/.ossdive/ossdive.db`)
 - [ ] 기본 조회 명령어 + TUI 테이블 출력 (Ink)
 - [ ] 필터 옵션 (`--lang`, `--min-stars`, `--since`)
 - [ ] MCP 서버 4개 Tool 구현
-- [ ] Homebrew formula + `brew install ossriff`
+- [ ] Homebrew formula + `brew install ossdive`
 
 ### Phase 3 — 메뉴바 앱
 - [ ] Tauri 프로젝트 초기화

@@ -58,7 +58,7 @@ export function ProjectList({ projects, query, filter, sort }: ProjectListProps)
       <div className="list">
         <div className="empty">
           {projects.length === 0
-            ? "Run ossriff collect to populate the database."
+            ? "Run ossdive collect to populate the database."
             : "No matching projects."}
         </div>
       </div>
