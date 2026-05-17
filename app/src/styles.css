@@ -38,6 +38,9 @@
   --tag-border:      rgba(0,0,0,0.08);
   --green:           #34C759;
   --scrollbar:       rgba(0,0,0,0.12);
+
+  --icon-badge-bg:   #111111;
+  --icon-badge-fg:   #ffffff;
 }
 
 [data-theme="dark"] {
@@ -79,6 +82,9 @@
   --tag-border:      rgba(255,255,255,0.1);
   --green:           #30D158;
   --scrollbar:       rgba(255,255,255,0.1);
+
+  --icon-badge-bg:   rgba(255,255,255,0.85);
+  --icon-badge-fg:   #111111;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }

@@ -1,3 +1,5 @@
+<img src="branding/ossdive-logo.png" width="72" alt="ossdive logo" />
+
 # ossdive
 
 [![Homebrew](https://img.shields.io/badge/homebrew-jongjinchoi%2Fossdive-orange?logo=homebrew)](https://github.com/jongjinchoi/homebrew-ossdive)
