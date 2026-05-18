@@ -1,4 +1,4 @@
-import { openDB, getLastSince, setLastSince, upsertProject } from "../src/db/schema.ts"
+import { openDB, getLastSince, setLastSince, upsertProject, insertSnapshot } from "../src/db/schema.ts"
 import { DB_PATH as DEFAULT_DB_PATH, ensureConfigDir } from "../src/utils/fs.ts"
 import type { HNPost, GitHubRepo, Project } from "../src/types.ts"
 
@@ -162,11 +162,33 @@ async function main() {
     if (!repo) continue
     if (repo.stargazers_count < GH_MIN_STARS) continue
 
-    upsertProject(db, toProject(post, repo))
+    const project = toProject(post, repo)
+    const id = upsertProject(db, project)
+    insertSnapshot(db, id, project.hn_score, project.hn_comments)
     stored++
 
     await Bun.sleep(100)
   }
+
+  // Refresh pass: re-fetch last 7 days to update HN scores for existing projects
+  // (HN posts are collected once by creation time; this keeps scores current for hot ranking)
+  console.log("\nRefreshing HN scores for last 7 days…")
+  const refreshPosts = await fetchHNWindow(now - 7 * 86400, now)
+  let refreshed = 0
+  for (const post of refreshPosts) {
+    const hnUrl = `https://news.ycombinator.com/item?id=${post.objectID}`
+    const existing = db.prepare("SELECT id FROM projects WHERE hn_url = ?").get(hnUrl) as { id: number } | null
+    if (!existing) continue
+    db.prepare(
+      "UPDATE projects SET hn_score = ?, hn_comments = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+    ).run(post.points, post.num_comments, existing.id)
+    insertSnapshot(db, existing.id, post.points, post.num_comments)
+    refreshed++
+  }
+  console.log(`  → ${refreshed} projects refreshed`)
+
+  // Prune snapshots older than 90 days
+  db.exec("DELETE FROM project_snapshots WHERE snapshot_at < DATE('now', '-90 days')")
 
   // Checkpoint: next run starts from this moment
   setLastSince(db, now)

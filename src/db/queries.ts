@@ -6,6 +6,11 @@ export interface TrendingOpts {
   limit?: number
 }
 
+export interface HotOpts {
+  since?: string   // "7d", "30d", "3d", or ISO date — default "3d"
+  limit?: number
+}
+
 export interface ListProjectsOpts {
   lang?:       string
   minStars?:   number
@@ -112,16 +117,17 @@ export function listProjects(db: Database, opts: ListProjectsOpts = {}): Project
 }
 
 export function searchProjects(db: Database, query: string, limit = 20): Project[] {
-  const like = `%${query.toLowerCase()}%`
-  const sql  = `
-    SELECT * FROM projects
-    WHERE LOWER(repo_name) LIKE ?
-       OR LOWER(hn_title)  LIKE ?
-       OR LOWER(description) LIKE ?
-    ORDER BY hn_score DESC
+  const tokens = query.toLowerCase().match(/[a-z0-9]+/g)
+  if (!tokens || tokens.length === 0) return []
+  const match = tokens.map(t => `${t}*`).join(" ")  // implicit AND, prefix match (no quotes — * inside quotes is literal)
+  const sql = `
+    SELECT p.* FROM projects p
+    JOIN projects_fts ON p.id = projects_fts.rowid
+    WHERE projects_fts MATCH ?
+    ORDER BY projects_fts.rank
     LIMIT ?
   `
-  const rows = db.prepare(sql).all(like, like, like, Math.min(limit, 100)) as Record<string, unknown>[]
+  const rows = db.prepare(sql).all(match, Math.min(limit, 100)) as Record<string, unknown>[]
   return rows.map(rowToProject)
 }
 
@@ -144,8 +150,7 @@ function keywords(text: string | null): Set<string> {
 }
 
 export function getTrending(db: Database, opts: TrendingOpts = {}): Project[] {
-  const { since = "7d" } = opts
-  const limit = (!opts.limit || isNaN(opts.limit)) ? 20 : opts.limit
+  const { since = "7d", limit = 20 } = opts
   const dt = parseSince(since) ?? parseSince("7d")!
   const sql = `
     SELECT *
@@ -189,6 +194,30 @@ export function findSimilar(db: Database, repoName: string, limit = 10): Project
     .sort((a, b) => b.rank - a.rank)
     .slice(0, limit)
     .map(x => x.p)
+}
+
+export function getHot(db: Database, opts: HotOpts = {}): Project[] {
+  const { since = "3d", limit = 20 } = opts
+  const dt = parseSince(since) ?? parseSince("3d")!
+  const sql = `
+    WITH latest AS (SELECT MAX(snapshot_at) AS d FROM project_snapshots),
+    oldest AS (
+      SELECT project_id, hn_score, hn_comments,
+        ROW_NUMBER() OVER (PARTITION BY project_id ORDER BY snapshot_at ASC) AS rn
+      FROM project_snapshots
+      WHERE snapshot_at >= DATE(?)
+    )
+    SELECT p.*,
+      (n.hn_score - o.hn_score) + (n.hn_comments - o.hn_comments) * 2 AS trend_delta
+    FROM projects p
+    JOIN project_snapshots n ON n.project_id = p.id AND n.snapshot_at = (SELECT d FROM latest)
+    JOIN oldest o ON o.project_id = p.id AND o.rn = 1
+    WHERE trend_delta > 0
+    ORDER BY trend_delta DESC
+    LIMIT ?
+  `
+  const rows = db.prepare(sql).all(dt, Math.min(limit, 100)) as Record<string, unknown>[]
+  return rows.map(rowToProject)
 }
 
 export function getStats(db: Database): Stats {

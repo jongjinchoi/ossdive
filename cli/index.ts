@@ -2,8 +2,9 @@
 import { Command } from "commander"
 import { syncDb } from "./sync.ts"
 import { openDB } from "../src/db/schema.ts"
-import { listProjects, searchProjects, getProject, getStats, getTrending, findSimilar } from "../src/db/queries.ts"
+import { listProjects, searchProjects, getProject, getStats, getTrending, findSimilar, getHot } from "../src/db/queries.ts"
 import type { ListProjectsOpts } from "../src/db/queries.ts"
+import { openBookmarksDB, addBookmark, removeBookmark, listBookmarks } from "../src/db/bookmarks.ts"
 import type { Project } from "../src/types.ts"
 
 declare const PKG_VERSION: string
@@ -297,6 +298,109 @@ program
     const { status, path } = await syncDb({ force: true })
     printSyncStatus(status)
     console.log(path)
+  })
+
+// hot
+program
+  .command("hot")
+  .description("Show projects with rapidly increasing HN engagement vs N days ago")
+  .option("--since <range>", '"3d" / "7d" / "30d" / ISO date (default: 3d)', "3d")
+  .option("-n, --limit <n>", "Max results (default: 50)", int, 50)
+  .option("--no-tui",        "Plain text output")
+  .action(async (opts) => {
+    const { path, status } = await syncDb()
+    if (status === "missing") {
+      console.error("Error: could not download ossdive.db.")
+      process.exit(1)
+    }
+    printSyncStatus(status)
+    const db       = openDB(path)
+    const projects = getHot(db, { since: opts.since, limit: opts.limit as number })
+    if (projects.length === 0) {
+      console.log("No hot projects found. Snapshots need at least 2 days to compute velocity.")
+      return
+    }
+    await renderList(projects, opts.tui !== false)
+  })
+
+// bookmark
+const bookmark = program
+  .command("bookmark")
+  .description("Save and manage bookmarked projects")
+
+bookmark
+  .command("add <repo>")
+  .description('Bookmark a project in "owner/repo" format')
+  .action(async (repo: string) => {
+    const { path, status } = await syncDb()
+    if (status === "missing") {
+      console.error("Error: could not download ossdive.db.")
+      process.exit(1)
+    }
+    const db      = openDB(path)
+    const project = getProject(db, repo)
+    if (!project) {
+      console.error(`Project "${repo}" not found in ossdive DB.`)
+      process.exit(1)
+    }
+    const bdb = openBookmarksDB()
+    addBookmark(bdb, project.repo_name)
+    console.log(`Bookmarked: ${project.repo_name}`)
+  })
+
+bookmark
+  .command("remove <repo>")
+  .description('Remove a bookmarked project')
+  .action(async (repo: string) => {
+    const bdb     = openBookmarksDB()
+    const removed = removeBookmark(bdb, repo)
+    if (removed) console.log(`Removed bookmark: ${repo}`)
+    else         console.error(`Bookmark not found: ${repo}`)
+  })
+
+bookmark
+  .command("list")
+  .description("List all bookmarked projects")
+  .option("--no-tui", "Plain text output")
+  .action(async (opts) => {
+    const { path, status } = await syncDb()
+    if (status === "missing") {
+      console.error("Error: could not download ossdive.db.")
+      process.exit(1)
+    }
+    printSyncStatus(status)
+    const db   = openDB(path)
+    const bdb  = openBookmarksDB()
+    const { projects, archived } = listBookmarks(bdb, db)
+
+    if (projects.length === 0 && archived.length === 0) {
+      console.log("No bookmarks saved. Use `ossdive bookmark add <repo>` to add one.")
+      return
+    }
+
+    if (projects.length > 0) {
+      if (!opts.tui || !process.stdout.isTTY) {
+        printPlainList(projects)
+      } else {
+        const { render }              = await import("ink")
+        const React                   = (await import("react")).default
+        const { BookmarkListView }    = await import("./tui/BookmarkListView.tsx")
+        const { removeBookmark: rmBk } = await import("../src/db/bookmarks.ts")
+        const instance = render(
+          React.createElement(BookmarkListView, {
+            projects,
+            onDelete: (repoName: string) => rmBk(bdb, repoName),
+          }),
+          {}
+        )
+        await instance.waitUntilExit()
+        process.exit(0)
+      }
+    }
+
+    if (archived.length > 0) {
+      console.log(`\nArchived (no longer in DB): ${archived.join(", ")}`)
+    }
   })
 
 // mcp

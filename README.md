@@ -49,6 +49,16 @@ ossdive compare vercel/ai langchain-ai/langchainjs
 # Find similar projects
 ossdive similar vercel/ai
 
+# Hot projects — rapidly increasing HN engagement vs last 3 days
+ossdive hot
+ossdive hot --since 7d --no-tui
+
+# Bookmarks — save and manage favourite projects
+ossdive bookmark add vercel/ai
+ossdive bookmark list          # interactive TUI (d to remove)
+ossdive bookmark list --no-tui
+ossdive bookmark remove vercel/ai
+
 # Stats
 ossdive stats
 
@@ -66,6 +76,7 @@ ossdive mcp
 | `↑ / ↓` (or `k/j`) | Move cursor |
 | `Tab` | Toggle GitHub / HN link mode |
 | `Enter` | Open selected link in browser |
+| `d` | Remove bookmark (bookmark list only) |
 | `q` / `Esc` | Quit |
 
 ## Setup (from source)
@@ -138,12 +149,16 @@ When running from source:
 | Tool | Description |
 |---|---|
 | `list_projects` | List projects with filters and sorting (`lang`, `min_stars`, `min_score`, `since`, `is_show_hn`, `sort_by`: `hn_score`\|`stars`\|`last_commit_at`\|`collected_at`\|`hn_created_at`) |
-| `search_projects` | Search by keyword across repo name, HN title, and description |
+| `search_projects` | FTS5 full-text search (relevance ranked) across repo name, HN title, and description |
 | `get_project` | Get details for a specific project by `"owner/repo"` |
 | `get_stats` | Collection stats: total count, language breakdown, top starred |
 | `get_trending` | Projects recently trending on HN, ranked by score + comments (`since`, `limit`) |
+| `get_hot` | Projects with rapidly increasing HN engagement vs N days ago (`since` default: 3d) |
 | `compare_projects` | Side-by-side comparison of 2–4 repos (`repos: ["owner/repo", ...]`) |
 | `find_similar` | Find projects similar to a given repo by language, size, and keyword overlap |
+| `add_bookmark` | Save a project to your bookmark list |
+| `remove_bookmark` | Remove a project from bookmarks |
+| `list_bookmarks` | List all bookmarked projects with current stats |
 
 Example queries:
 ```

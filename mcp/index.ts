@@ -5,7 +5,8 @@ import { join } from "node:path"
 import { homedir } from "node:os"
 import { existsSync } from "node:fs"
 import { openDB } from "../src/db/schema.ts"
-import { listProjects, searchProjects, getProject, getStats, getTrending, findSimilar } from "../src/db/queries.ts"
+import { listProjects, searchProjects, getProject, getStats, getTrending, findSimilar, getHot } from "../src/db/queries.ts"
+import { openBookmarksDB, addBookmark, removeBookmark, listBookmarks } from "../src/db/bookmarks.ts"
 import type { Project } from "../src/types.ts"
 
 function resolveDbPath(): string {
@@ -132,16 +133,21 @@ const server = new McpServer(
     instructions: `ossdive is an HN OSS project curator. Use these tools to explore curated open-source projects discovered on Hacker News.
 
 - list_projects: Browse with filters (language, stars, HN score, date, Show HN)
-- search_projects: Full-text search across repo names, HN titles, and descriptions
+- search_projects: FTS5 full-text search across repo names, HN titles, and descriptions (relevance ranked)
 - get_project: Detailed info for a specific repo (format: "owner/repo")
 - get_stats: Overview of the entire collection
 - get_trending: Projects recently trending on HN (by score + comments) within a time window
+- get_hot: Projects with rapidly increasing HN engagement vs N days ago (velocity-based, needs 2+ days of snapshots)
 - compare_projects: Side-by-side comparison of 2–4 repos
-- find_similar: Repos similar to a given one (same language, similar size, keyword overlap)`,
+- find_similar: Repos similar to a given one (same language, similar size, keyword overlap)
+- add_bookmark: Save a project to your personal bookmark list
+- remove_bookmark: Remove a project from bookmarks
+- list_bookmarks: List all bookmarked projects`,
   },
 )
 
-const db = openDB(resolveDbPath())
+const db  = openDB(resolveDbPath())
+const bdb = openBookmarksDB()
 
 server.registerTool(
   "list_projects",
@@ -283,6 +289,91 @@ server.registerTool(
         return { content: [{ type: "text" as const, text: `No similar projects found for "${repo_name}".` }] }
       }
       return { content: [{ type: "text" as const, text: formatList(projects) }] }
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: `Error: ${String(err)}` }], isError: true }
+    }
+  },
+)
+
+server.registerTool(
+  "get_hot",
+  {
+    description: "Show projects with rapidly increasing HN engagement (score + comments velocity). Requires at least 2 days of snapshot data after first collector run.",
+    inputSchema: {
+      since: z.string().optional().describe('Comparison window: "3d", "7d", "30d", or ISO date (default: "3d")'),
+      limit: z.number().int().min(1).max(100).optional().describe("Max results (default: 20)"),
+    },
+  },
+  async ({ since, limit }) => {
+    try {
+      const projects = getHot(db, { since, limit })
+      if (projects.length === 0) {
+        return { content: [{ type: "text" as const, text: "No hot projects found. Snapshot data needs at least 2 days to compute velocity." }] }
+      }
+      return { content: [{ type: "text" as const, text: formatList(projects) }] }
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: `Error: ${String(err)}` }], isError: true }
+    }
+  },
+)
+
+server.registerTool(
+  "add_bookmark",
+  {
+    description: 'Save a project to your personal bookmark list. Use "owner/repo" format.',
+    inputSchema: {
+      repo_name: z.string().describe('GitHub repo in "owner/repo" format'),
+    },
+  },
+  async ({ repo_name }) => {
+    try {
+      const project = getProject(db, repo_name)
+      if (!project) {
+        return { content: [{ type: "text" as const, text: `Project "${repo_name}" not found in ossdive DB.` }], isError: true }
+      }
+      addBookmark(bdb, project.repo_name)
+      return { content: [{ type: "text" as const, text: `Bookmarked: ${project.repo_name}` }] }
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: `Error: ${String(err)}` }], isError: true }
+    }
+  },
+)
+
+server.registerTool(
+  "remove_bookmark",
+  {
+    description: 'Remove a project from your bookmark list. Use "owner/repo" format.',
+    inputSchema: {
+      repo_name: z.string().describe('GitHub repo in "owner/repo" format'),
+    },
+  },
+  async ({ repo_name }) => {
+    try {
+      const removed = removeBookmark(bdb, repo_name)
+      if (removed) return { content: [{ type: "text" as const, text: `Removed bookmark: ${repo_name}` }] }
+      return { content: [{ type: "text" as const, text: `Bookmark not found: ${repo_name}` }] }
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: `Error: ${String(err)}` }], isError: true }
+    }
+  },
+)
+
+server.registerTool(
+  "list_bookmarks",
+  {
+    description: "List all bookmarked projects with their current stats from the ossdive DB.",
+    inputSchema: {},
+  },
+  async () => {
+    try {
+      const { projects, archived } = listBookmarks(bdb, db)
+      if (projects.length === 0 && archived.length === 0) {
+        return { content: [{ type: "text" as const, text: "No bookmarks saved." }] }
+      }
+      const lines: string[] = []
+      if (projects.length > 0) lines.push(formatList(projects))
+      if (archived.length > 0) lines.push(`\nArchived (no longer in DB): ${archived.join(", ")}`)
+      return { content: [{ type: "text" as const, text: lines.join("\n") }] }
     } catch (err) {
       return { content: [{ type: "text" as const, text: `Error: ${String(err)}` }], isError: true }
     }

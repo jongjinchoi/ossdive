@@ -47,6 +47,64 @@ export function openDB(path: string): Database {
 
   db.exec("CREATE INDEX IF NOT EXISTS idx_projects_hn_created_at ON projects(hn_created_at DESC)")
 
+  // FTS5 full-text search (regular table — stores index+content, no external-content ambiguity)
+  // Migrate away from external-content FTS5 (version 1) if present
+  const ftsVersion = (db.prepare("SELECT value FROM meta WHERE key = 'fts5_version'").get() as { value: string } | null)?.value
+  if (ftsVersion !== "2") {
+    db.exec(`
+      DROP TABLE IF EXISTS projects_fts;
+      DROP TRIGGER IF EXISTS projects_fts_ai;
+      DROP TRIGGER IF EXISTS projects_fts_ad;
+      DROP TRIGGER IF EXISTS projects_fts_au;
+    `)
+  }
+
+  db.exec(`
+    CREATE VIRTUAL TABLE IF NOT EXISTS projects_fts USING fts5(
+      repo_name, hn_title, description
+    );
+
+    CREATE TRIGGER IF NOT EXISTS projects_fts_ai AFTER INSERT ON projects BEGIN
+      INSERT INTO projects_fts(rowid, repo_name, hn_title, description)
+      VALUES (new.id, new.repo_name, new.hn_title, new.description);
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS projects_fts_ad AFTER DELETE ON projects BEGIN
+      DELETE FROM projects_fts WHERE rowid = old.id;
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS projects_fts_au AFTER UPDATE ON projects BEGIN
+      DELETE FROM projects_fts WHERE rowid = old.id;
+      INSERT INTO projects_fts(rowid, repo_name, hn_title, description)
+      VALUES (new.id, new.repo_name, new.hn_title, new.description);
+    END;
+  `)
+
+  // Backfill FTS index when counts diverge (first run or after migration)
+  const ftsCount  = (db.prepare("SELECT count(*) AS n FROM projects_fts").get() as { n: number }).n
+  const projCount = (db.prepare("SELECT count(*) AS n FROM projects").get() as { n: number }).n
+  if (ftsCount !== projCount) {
+    db.exec("DELETE FROM projects_fts")
+    db.prepare(`
+      INSERT INTO projects_fts(rowid, repo_name, hn_title, description)
+      SELECT id, repo_name, hn_title, description FROM projects
+    `).run()
+  }
+
+  db.prepare("INSERT INTO meta(key,value) VALUES('fts5_version','2') ON CONFLICT(key) DO UPDATE SET value='2'").run()
+
+  // Time-series snapshots for `hot` velocity ranking
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS project_snapshots (
+      project_id  INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      snapshot_at TEXT    NOT NULL DEFAULT (DATE('now')),
+      hn_score    INTEGER NOT NULL,
+      hn_comments INTEGER NOT NULL,
+      PRIMARY KEY (project_id, snapshot_at)
+    );
+    CREATE INDEX IF NOT EXISTS idx_snapshots_date ON project_snapshots(snapshot_at);
+  `)
+
   return db
 }
 
@@ -96,10 +154,11 @@ const upsertSQL = `
     is_show_hn     = excluded.is_show_hn,
     hn_created_at  = excluded.hn_created_at,
     updated_at     = CURRENT_TIMESTAMP
+  RETURNING id
 `
 
-export function upsertProject(db: Database, project: Project): void {
-  db.prepare(upsertSQL).run({
+export function upsertProject(db: Database, project: Project): number {
+  const row = db.prepare(upsertSQL).get({
     github_url:     project.github_url,
     repo_name:      project.repo_name,
     description:    project.description,
@@ -115,5 +174,16 @@ export function upsertProject(db: Database, project: Project): void {
     hn_url:         project.hn_url,
     is_show_hn:     project.is_show_hn ? 1 : 0,
     hn_created_at:  project.hn_created_at,
-  })
+  }) as { id: number }
+  return row.id
+}
+
+export function insertSnapshot(db: Database, projectId: number, hnScore: number, hnComments: number): void {
+  db.prepare(`
+    INSERT INTO project_snapshots (project_id, hn_score, hn_comments)
+    VALUES (?, ?, ?)
+    ON CONFLICT(project_id, snapshot_at) DO UPDATE SET
+      hn_score    = excluded.hn_score,
+      hn_comments = excluded.hn_comments
+  `).run(projectId, hnScore, hnComments)
 }

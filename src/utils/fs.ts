@@ -2,9 +2,10 @@ import { mkdir, readFile, writeFile, access, rename } from "node:fs/promises"
 import { homedir } from "node:os"
 import { join } from "node:path"
 
-export const CONFIG_DIR = join(homedir(), ".ossdive")
-export const DB_PATH    = join(CONFIG_DIR, "ossdive.db")
-export const META_PATH  = join(CONFIG_DIR, "sync-meta.json")
+export const CONFIG_DIR      = join(homedir(), ".ossdive")
+export const DB_PATH         = join(CONFIG_DIR, "ossdive.db")
+export const META_PATH       = join(CONFIG_DIR, "sync-meta.json")
+export const BOOKMARKS_PATH  = join(CONFIG_DIR, "bookmarks.db")
 
 const LEGACY_DB_PATH   = join(homedir(), ".ossriff", "ossriff.db")
 const LEGACY_META_PATH = join(homedir(), ".ossriff", "sync-meta.json")
