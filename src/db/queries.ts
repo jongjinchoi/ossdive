@@ -1,6 +1,11 @@
 import type { Database } from "bun:sqlite"
 import type { Project } from "../types.ts"
 
+export interface TrendingOpts {
+  since?: string   // "7d", "30d", "1y", or ISO date — default "7d"
+  limit?: number
+}
+
 export interface ListProjectsOpts {
   lang?:       string
   minStars?:   number
@@ -123,6 +128,67 @@ export function searchProjects(db: Database, query: string, limit = 20): Project
 export function getProject(db: Database, repoName: string): Project | null {
   const row = db.prepare("SELECT * FROM projects WHERE repo_name = ? COLLATE NOCASE").get(repoName) as Record<string, unknown> | null
   return row ? rowToProject(row) : null
+}
+
+const STOPWORDS = new Set([
+  "the","a","an","and","or","for","to","of","in","on","with","is","it",
+  "that","this","by","as","at","from","be","are","was","has","have","not",
+  "but","its","can","use","all",
+])
+
+function keywords(text: string | null): Set<string> {
+  if (!text) return new Set()
+  return new Set(
+    text.toLowerCase().match(/[a-z0-9]+/g)?.filter(w => w.length > 2 && !STOPWORDS.has(w)) ?? []
+  )
+}
+
+export function getTrending(db: Database, opts: TrendingOpts = {}): Project[] {
+  const { since = "7d" } = opts
+  const limit = (!opts.limit || isNaN(opts.limit)) ? 20 : opts.limit
+  const dt = parseSince(since) ?? parseSince("7d")!
+  const sql = `
+    SELECT *
+    FROM projects
+    WHERE hn_created_at IS NOT NULL AND hn_created_at >= ?
+    ORDER BY (hn_score + hn_comments * 2) DESC
+    LIMIT ?
+  `
+  const rows = db.prepare(sql).all(dt, Math.min(limit, 100)) as Record<string, unknown>[]
+  return rows.map(rowToProject)
+}
+
+export function findSimilar(db: Database, repoName: string, limit = 10): Project[] {
+  const target = getProject(db, repoName)
+  if (!target) return []
+
+  const conditions = ["repo_name != ? COLLATE NOCASE"]
+  const params: (string | number)[] = [target.repo_name]
+
+  if (target.language) {
+    conditions.push("LOWER(language) = LOWER(?)")
+    params.push(target.language)
+  }
+  if (target.stars > 0) {
+    conditions.push("stars BETWEEN ? AND ?")
+    params.push(Math.floor(target.stars * 0.25), Math.ceil(target.stars * 4))
+  }
+
+  const sql = `SELECT * FROM projects WHERE ${conditions.join(" AND ")} LIMIT 200`
+  const candidates = (db.prepare(sql).all(...params) as Record<string, unknown>[]).map(rowToProject)
+
+  const targetKw = keywords(`${target.description ?? ""} ${target.hn_title ?? ""}`)
+
+  return candidates
+    .map(p => {
+      const kw = keywords(`${p.description ?? ""} ${p.hn_title ?? ""}`)
+      let overlap = 0
+      for (const w of kw) if (targetKw.has(w)) overlap++
+      return { p, rank: overlap * 10 + p.hn_score }
+    })
+    .sort((a, b) => b.rank - a.rank)
+    .slice(0, limit)
+    .map(x => x.p)
 }
 
 export function getStats(db: Database): Stats {

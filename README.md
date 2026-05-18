@@ -39,6 +39,16 @@ ossdive search "machine learning" -n 50
 # Get details
 ossdive get microsoft/VibeVoice
 
+# Trending on HN (last 7 days by default)
+ossdive trending
+ossdive trending --since 30d --no-tui
+
+# Compare repos side by side
+ossdive compare vercel/ai langchain-ai/langchainjs
+
+# Find similar projects
+ossdive similar vercel/ai
+
 # Stats
 ossdive stats
 
@@ -131,6 +141,9 @@ When running from source:
 | `search_projects` | Search by keyword across repo name, HN title, and description |
 | `get_project` | Get details for a specific project by `"owner/repo"` |
 | `get_stats` | Collection stats: total count, language breakdown, top starred |
+| `get_trending` | Projects recently trending on HN, ranked by score + comments (`since`, `limit`) |
+| `compare_projects` | Side-by-side comparison of 2–4 repos (`repos: ["owner/repo", ...]`) |
+| `find_similar` | Find projects similar to a given repo by language, size, and keyword overlap |
 
 Example queries:
 ```

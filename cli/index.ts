@@ -2,12 +2,14 @@
 import { Command } from "commander"
 import { syncDb } from "./sync.ts"
 import { openDB } from "../src/db/schema.ts"
-import { listProjects, searchProjects, getProject, getStats } from "../src/db/queries.ts"
+import { listProjects, searchProjects, getProject, getStats, getTrending, findSimilar } from "../src/db/queries.ts"
 import type { ListProjectsOpts } from "../src/db/queries.ts"
 import type { Project } from "../src/types.ts"
 
 declare const PKG_VERSION: string
 const VERSION = typeof PKG_VERSION !== "undefined" ? PKG_VERSION : "0.0.0-dev"
+
+const int = (v: string): number => Number.parseInt(v, 10)
 
 // ── Plain-text formatters (for non-TTY / --no-tui) ───────────────────────────
 
@@ -74,6 +76,29 @@ function printStats(stats: ReturnType<typeof getStats>): void {
   }
 }
 
+function printCompare(projects: Project[]): void {
+  if (projects.length === 0) { console.log("No projects to compare."); return }
+
+  const COL = 22
+  const header = "  " + " ".repeat(COL) + projects.map(p => p.repo_name.padEnd(20)).join("  ")
+  console.log(header)
+  console.log("  " + "─".repeat(COL + projects.length * 22))
+
+  function row(label: string, vals: string[]): void {
+    console.log("  " + label.padEnd(COL) + vals.map(v => v.padEnd(20)).join("  "))
+  }
+
+  row("Stars",        projects.map(p => `★ ${p.stars.toLocaleString()}`))
+  row("Forks",        projects.map(p => p.forks.toLocaleString()))
+  row("Open Issues",  projects.map(p => p.open_issues.toLocaleString()))
+  row("HN Score",     projects.map(p => String(p.hn_score)))
+  row("HN Comments",  projects.map(p => String(p.hn_comments)))
+  row("Last Commit",  projects.map(p => p.last_commit_at?.slice(0, 10) ?? "—"))
+  row("Language",     projects.map(p => p.language ?? "—"))
+  row("License",      projects.map(p => p.license ?? "—"))
+  row("Show HN",      projects.map(p => p.is_show_hn ? "Yes" : "No"))
+}
+
 function printSyncStatus(status: string): void {
   const labels: Record<string, string> = {
     updated: "↓ updated",
@@ -83,6 +108,19 @@ function printSyncStatus(status: string): void {
     missing: "✗ could not download DB",
   }
   process.stderr.write(`[sync] ${labels[status] ?? status}\n`)
+}
+
+async function renderList(projects: Project[], tui: boolean): Promise<void> {
+  if (!tui || !process.stdout.isTTY) {
+    printPlainList(projects)
+    return
+  }
+  const { render }   = await import("ink")
+  const React        = (await import("react")).default
+  const { ListView } = await import("./tui/ListView.tsx")
+  const instance = render(React.createElement(ListView, { projects }), {})
+  await instance.waitUntilExit()
+  process.exit(0)
 }
 
 // ── Program ───────────────────────────────────────────────────────────────────
@@ -97,12 +135,12 @@ program
   .command("list", { isDefault: true })
   .description("Browse curated projects in interactive TUI (default command)")
   .option("-l, --lang <lang>",    "Filter by language, e.g. rust, python")
-  .option("-s, --min-stars <n>",  "Minimum GitHub stars",    parseInt)
-  .option("-c, --min-score <n>",  "Minimum HN score",        parseInt)
+  .option("-s, --min-stars <n>",  "Minimum GitHub stars",    int)
+  .option("-c, --min-score <n>",  "Minimum HN score",        int)
   .option("--since <range>",      '"7d" / "30d" / "1y" / ISO date')
   .option("--show-hn",            "Show HN posts only")
   .option("--sort <field>",       "hn_score | stars | last_commit_at | collected_at | hn_created_at", "hn_score")
-  .option("-n, --limit <n>",      "Max results (default: 50)", parseInt, 50)
+  .option("-n, --limit <n>",      "Max results (default: 50)", int, 50)
   .option("--no-tui",             "Plain text output (always on when not a TTY)")
   .action(async (opts) => {
     const { path, status } = await syncDb()
@@ -126,25 +164,14 @@ program
 
     const db       = openDB(path)
     const projects = listProjects(db, queryOpts)
-
-    if (opts.tui === false || !process.stdout.isTTY) {
-      printPlainList(projects)
-      return
-    }
-
-    const { render }    = await import("ink")
-    const React         = (await import("react")).default
-    const { ListView }  = await import("./tui/ListView.tsx")
-
-    const instance = render(React.createElement(ListView, { projects }), {})
-    instance.waitUntilExit().then(() => process.exit(0))
+    await renderList(projects, opts.tui !== false)
   })
 
 // search
 program
   .command("search <query>")
   .description("Keyword search across repo name, HN title, and description")
-  .option("-n, --limit <n>", "Max results (default: 20)", parseInt, 20)
+  .option("-n, --limit <n>", "Max results (default: 20)", int, 20)
   .action(async (query, opts) => {
     const { path, status } = await syncDb()
     if (status === "missing") {
@@ -155,6 +182,71 @@ program
 
     const db       = openDB(path)
     const projects = searchProjects(db, query, opts.limit as number)
+    printPlainList(projects)
+  })
+
+// trending
+program
+  .command("trending")
+  .description("Show projects trending on HN in the given time window")
+  .option("--since <range>", '"7d" / "30d" / "1y" / ISO date (default: 7d)', "7d")
+  .option("-n, --limit <n>", "Max results (default: 50)", int, 50)
+  .option("--no-tui",        "Plain text output")
+  .action(async (opts) => {
+    const { path, status } = await syncDb()
+    if (status === "missing") {
+      console.error("Error: could not download ossdive.db.")
+      process.exit(1)
+    }
+    printSyncStatus(status)
+    const db       = openDB(path)
+    const projects = getTrending(db, { since: opts.since, limit: opts.limit as number })
+    await renderList(projects, opts.tui !== false)
+  })
+
+// compare
+program
+  .command("compare <repos...>")
+  .description('Side-by-side comparison of 2–4 repos in "owner/repo" format')
+  .action(async (repos: string[]) => {
+    if (repos.length < 2) {
+      console.error("Error: provide at least 2 repos to compare.")
+      process.exit(1)
+    }
+    const { path, status } = await syncDb()
+    if (status === "missing") {
+      console.error("Error: could not download ossdive.db.")
+      process.exit(1)
+    }
+    printSyncStatus(status)
+    const db       = openDB(path)
+    const projects = repos.map(r => getProject(db, r))
+    const missing  = repos.filter((_, i) => !projects[i])
+    if (missing.length) {
+      console.error(`Error: not found: ${missing.join(", ")}`)
+      process.exit(1)
+    }
+    printCompare(projects as import("../src/types.ts").Project[])
+  })
+
+// similar
+program
+  .command("similar <repo>")
+  .description('Find projects similar to the given repo ("owner/repo" format)')
+  .option("-n, --limit <n>", "Max results (default: 10)", int, 10)
+  .action(async (repo: string, opts) => {
+    const { path, status } = await syncDb()
+    if (status === "missing") {
+      console.error("Error: could not download ossdive.db.")
+      process.exit(1)
+    }
+    printSyncStatus(status)
+    const db       = openDB(path)
+    const projects = findSimilar(db, repo, opts.limit as number)
+    if (projects.length === 0) {
+      console.log(`No similar projects found for "${repo}".`)
+      return
+    }
     printPlainList(projects)
   })
 

@@ -5,8 +5,8 @@ import { join } from "node:path"
 import { homedir } from "node:os"
 import { existsSync } from "node:fs"
 import { openDB } from "../src/db/schema.ts"
-import { listProjects, searchProjects, getProject, getStats } from "../src/db/queries.ts"
-import type { Project, } from "../src/types.ts"
+import { listProjects, searchProjects, getProject, getStats, getTrending, findSimilar } from "../src/db/queries.ts"
+import type { Project } from "../src/types.ts"
 
 function resolveDbPath(): string {
   if (process.env["OSSDIVE_DB"]) return process.env["OSSDIVE_DB"]
@@ -70,6 +70,32 @@ function formatProject(p: Project): string {
   return lines.join("\n")
 }
 
+function formatCompare(projects: Project[]): string {
+  if (projects.length === 0) return "No projects to compare."
+
+  const COL = 20
+  const lines: string[] = []
+  const header = " ".repeat(COL) + projects.map(p => p.repo_name.padEnd(22)).join("")
+  lines.push(header)
+  lines.push("─".repeat(COL + projects.length * 22))
+
+  function row(label: string, vals: string[]): void {
+    lines.push(label.padEnd(COL) + vals.map(v => v.padEnd(22)).join(""))
+  }
+
+  row("Stars",        projects.map(p => `★ ${p.stars.toLocaleString()}`))
+  row("Forks",        projects.map(p => p.forks.toLocaleString()))
+  row("Open Issues",  projects.map(p => p.open_issues.toLocaleString()))
+  row("HN Score",     projects.map(p => String(p.hn_score)))
+  row("HN Comments",  projects.map(p => String(p.hn_comments)))
+  row("Last Commit",  projects.map(p => p.last_commit_at?.slice(0, 10) ?? "—"))
+  row("Language",     projects.map(p => p.language ?? "—"))
+  row("License",      projects.map(p => p.license ?? "—"))
+  row("Show HN",      projects.map(p => p.is_show_hn ? "Yes" : "No"))
+
+  return lines.join("\n")
+}
+
 function formatStats(stats: ReturnType<typeof getStats>): string {
   const lines = [
     `# ossdive Stats`,
@@ -108,7 +134,10 @@ const server = new McpServer(
 - list_projects: Browse with filters (language, stars, HN score, date, Show HN)
 - search_projects: Full-text search across repo names, HN titles, and descriptions
 - get_project: Detailed info for a specific repo (format: "owner/repo")
-- get_stats: Overview of the entire collection`,
+- get_stats: Overview of the entire collection
+- get_trending: Projects recently trending on HN (by score + comments) within a time window
+- compare_projects: Side-by-side comparison of 2–4 repos
+- find_similar: Repos similar to a given one (same language, similar size, keyword overlap)`,
   },
 )
 
@@ -191,6 +220,69 @@ server.registerTool(
     try {
       const stats = getStats(db)
       return { content: [{ type: "text" as const, text: formatStats(stats) }] }
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: `Error: ${String(err)}` }], isError: true }
+    }
+  },
+)
+
+server.registerTool(
+  "get_trending",
+  {
+    description: "Show OSS projects recently trending on HN, ranked by score + comments activity.",
+    inputSchema: {
+      since: z.string().optional().describe('Time window: "7d", "30d", "1y", or ISO date (default: "7d")'),
+      limit: z.number().int().min(1).max(100).optional().describe("Max results (default: 20)"),
+    },
+  },
+  async ({ since, limit }) => {
+    try {
+      const projects = getTrending(db, { since, limit })
+      return { content: [{ type: "text" as const, text: formatList(projects) }] }
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: `Error: ${String(err)}` }], isError: true }
+    }
+  },
+)
+
+server.registerTool(
+  "compare_projects",
+  {
+    description: 'Side-by-side comparison of 2–4 repos. Use "owner/repo" format for each.',
+    inputSchema: {
+      repos: z.array(z.string()).min(2).max(4).describe('List of repo names in "owner/repo" format'),
+    },
+  },
+  async ({ repos }) => {
+    try {
+      const projects = repos.map(r => getProject(db, r))
+      const missing  = repos.filter((_, i) => !projects[i])
+      if (missing.length) {
+        return { content: [{ type: "text" as const, text: `Not found: ${missing.join(", ")}` }], isError: true }
+      }
+      return { content: [{ type: "text" as const, text: formatCompare(projects as Project[]) }] }
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: `Error: ${String(err)}` }], isError: true }
+    }
+  },
+)
+
+server.registerTool(
+  "find_similar",
+  {
+    description: 'Find projects similar to a given repo (same language, similar star count, keyword overlap). Use "owner/repo" format.',
+    inputSchema: {
+      repo_name: z.string().describe('GitHub repo in "owner/repo" format'),
+      limit: z.number().int().min(1).max(50).optional().describe("Max results (default: 10)"),
+    },
+  },
+  async ({ repo_name, limit }) => {
+    try {
+      const projects = findSimilar(db, repo_name, limit)
+      if (projects.length === 0) {
+        return { content: [{ type: "text" as const, text: `No similar projects found for "${repo_name}".` }] }
+      }
+      return { content: [{ type: "text" as const, text: formatList(projects) }] }
     } catch (err) {
       return { content: [{ type: "text" as const, text: `Error: ${String(err)}` }], isError: true }
     }
