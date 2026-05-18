@@ -38,9 +38,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COLLECT_SINCE: ${{ github.event.inputs.collect_since }}
 
-      - name: Backfill hn_created_at (legacy rows)
-        run: bun run backfill:hn-dates
-
       - name: Upload DB to Releases
         run: |
           gh release delete db-latest --cleanup-tag --yes 2>/dev/null || true
