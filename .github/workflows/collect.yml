@@ -3,7 +3,12 @@ name: Collect
 on:
   schedule:
     - cron: '0 */6 * * *'   # every 6 hours
-  workflow_dispatch:          # manual trigger
+  workflow_dispatch:
+    inputs:
+      collect_since:
+        description: 'Backfill start date (e.g. 2025-01-01). Leave empty for normal incremental run.'
+        required: false
+        default: ''
 
 jobs:
   collect:
@@ -31,6 +36,7 @@ jobs:
         run: bun run collect
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COLLECT_SINCE: ${{ github.event.inputs.collect_since }}
 
       - name: Backfill hn_created_at (legacy rows)
         run: bun run backfill:hn-dates
