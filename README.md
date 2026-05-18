@@ -6,7 +6,7 @@
 [![npm](https://img.shields.io/npm/v/ossdive)](https://www.npmjs.com/package/ossdive)
 [![Release](https://img.shields.io/github/v/release/jongjinchoi/ossdive)](https://github.com/jongjinchoi/ossdive/releases)
 
-HN에 등장한 오픈소스 프로젝트를 자동 수집·큐레이션하는 도구. HN 50점 이상 + GitHub 100스타 이상 프로젝트를 6시간마다 SQLite에 저장하고, CLI와 MCP 서버로 조회합니다.
+Automatically collects and curates open-source projects from Hacker News. Projects with HN score ≥ 50 and GitHub stars ≥ 100 are synced to SQLite every 6 hours, queryable via CLI and MCP server.
 
 ## Install
 
@@ -66,25 +66,25 @@ bun install
 
 ## Collector
 
-HN Algolia API와 GitHub API로 데이터를 수집해 `ossdive.db`에 저장합니다.
+Fetches data from the HN Algolia API and GitHub API, storing results in `ossdive.db`.
 
 ```bash
-# 기본 실행 (마지막 수집 시점부터 이어서)
+# Resume from last collected point
 bun run collect
 
-# 특정 날짜부터 소급 수집
+# Backfill from a specific date
 COLLECT_SINCE=2025-01-01 bun run collect
 ```
 
-환경변수 (`.env.local`):
+Environment variables (`.env.local`):
 ```bash
-GITHUB_TOKEN=ghp_...     # rate limit 60→5,000/h
-COLLECT_SINCE=2025-01-01 # 첫 실행 시 소급 시작점
+GITHUB_TOKEN=ghp_...     # raises rate limit from 60 to 5,000/h
+COLLECT_SINCE=2025-01-01 # backfill start date for first run
 ```
 
 ## MCP Server
 
-Claude Desktop / Claude Code에서 자연어로 수집된 프로젝트를 조회합니다.
+Query collected projects in natural language from Claude Desktop or Claude Code.
 
 ```bash
 bun run mcp
@@ -92,7 +92,7 @@ bun run mcp
 ossdive mcp
 ```
 
-### Claude Desktop 설정
+### Claude Desktop Setup
 
 `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
@@ -107,7 +107,7 @@ ossdive mcp
 }
 ```
 
-소스에서 실행 시:
+When running from source:
 
 ```json
 {
@@ -123,24 +123,24 @@ ossdive mcp
 }
 ```
 
-### 제공 Tools
+### Available Tools
 
-| Tool | 설명 |
+| Tool | Description |
 |---|---|
-| `list_projects` | 필터/정렬로 프로젝트 목록 조회 (`lang`, `min_stars`, `min_score`, `since`, `is_show_hn`, `sort_by`: `hn_score`\|`stars`\|`last_commit_at`\|`collected_at`\|`hn_created_at`) |
-| `search_projects` | 키워드로 repo명/HN 제목/설명 검색 |
-| `get_project` | `"owner/repo"` 형식으로 특정 프로젝트 상세 조회 |
-| `get_stats` | 수집 현황 통계 (총 수, 언어 분포, 상위 starred) |
+| `list_projects` | List projects with filters and sorting (`lang`, `min_stars`, `min_score`, `since`, `is_show_hn`, `sort_by`: `hn_score`\|`stars`\|`last_commit_at`\|`collected_at`\|`hn_created_at`) |
+| `search_projects` | Search by keyword across repo name, HN title, and description |
+| `get_project` | Get details for a specific project by `"owner/repo"` |
+| `get_stats` | Collection stats: total count, language breakdown, top starred |
 
-사용 예시:
+Example queries:
 ```
-"이번 주 HN에서 Rust로 만든 프로젝트 뭐 올라왔어?"
-"스타 500개 이상이면서 Show HN인 것만 보여줘"
-"auth 관련 프로젝트 찾아줘"
-"ossdive에 수집된 프로젝트 통계 알려줘"
-"이번 주 HN에 올라온 Rust 프로젝트 HN 포스트 날짜 순으로 보여줘"
+"What Rust projects appeared on HN this week?"
+"Show me Show HN projects with over 500 stars"
+"Find projects related to auth"
+"Give me ossdive collection stats"
+"List Rust projects from HN this week, sorted by post date"
 ```
 
 ## DB Sync
 
-CLI는 실행 시 자동으로 GitHub Releases(`db-latest`)에서 최신 `ossdive.db`를 `~/.ossdive/ossdive.db`로 다운로드합니다. 1시간 이내 재실행 시에는 캐시를 사용합니다.
+On startup, the CLI automatically downloads the latest `ossdive.db` from GitHub Releases (`db-latest`) to `~/.ossdive/ossdive.db`. Subsequent runs within 1 hour use the cached version.
