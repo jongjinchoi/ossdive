@@ -6,6 +6,9 @@ ossdive.db-wal
 # dependencies (bun install)
 node_modules
 
+# root uses bun — prevent accidental pnpm lockfile commits
+/pnpm-lock.yaml
+
 # output
 out
 dist
