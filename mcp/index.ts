@@ -6,6 +6,7 @@ import { homedir } from "node:os"
 import { existsSync } from "node:fs"
 import { openDB } from "../src/db/schema.ts"
 import { listProjects, searchProjects, getProject, getStats, getTrending, findSimilar, getHot } from "../src/db/queries.ts"
+import { fetchReadme, fetchDir, fetchFile } from "../src/github.ts"
 import { openBookmarksDB, addBookmark, removeBookmark, listBookmarks } from "../src/db/bookmarks.ts"
 import type { Project } from "../src/types.ts"
 
@@ -142,7 +143,10 @@ const server = new McpServer(
 - find_similar: Repos similar to a given one (same language, similar size, keyword overlap)
 - add_bookmark: Save a project to your personal bookmark list
 - remove_bookmark: Remove a project from bookmarks
-- list_bookmarks: List all bookmarked projects`,
+- list_bookmarks: List all bookmarked projects
+- get_repo_readme: Fetch the README of any GitHub repo ("owner/repo")
+- get_repo_files: List files/directories in a GitHub repo path (one level, shallow)
+- get_repo_file: Read the source of a specific file in a GitHub repo`,
   },
 )
 
@@ -374,6 +378,71 @@ server.registerTool(
       if (projects.length > 0) lines.push(formatList(projects))
       if (archived.length > 0) lines.push(`\nArchived (no longer in DB): ${archived.join(", ")}`)
       return { content: [{ type: "text" as const, text: lines.join("\n") }] }
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: `Error: ${String(err)}` }], isError: true }
+    }
+  },
+)
+
+server.registerTool(
+  "get_repo_readme",
+  {
+    description: 'Fetch the README of any GitHub repo. Use "owner/repo" format. Works without GITHUB_TOKEN (60 req/h); set GITHUB_TOKEN for 5,000/h.',
+    inputSchema: {
+      repo_name: z.string().describe('GitHub repo in "owner/repo" format'),
+    },
+  },
+  async ({ repo_name }) => {
+    try {
+      const text = await fetchReadme(repo_name)
+      return { content: [{ type: "text" as const, text }] }
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: `Error: ${String(err)}` }], isError: true }
+    }
+  },
+)
+
+server.registerTool(
+  "get_repo_files",
+  {
+    description: 'List files and directories in a GitHub repo path (one level). Use "owner/repo" format. Leave path empty for the root.',
+    inputSchema: {
+      repo_name: z.string().describe('GitHub repo in "owner/repo" format'),
+      path:      z.string().optional().describe('Directory path within the repo (default: root)'),
+    },
+  },
+  async ({ repo_name, path }) => {
+    try {
+      const entries = await fetchDir(repo_name, path ?? "")
+      if (entries.length === 0) return { content: [{ type: "text" as const, text: "(empty directory)" }] }
+      const lines = entries.map(e => {
+        if (e.type === "dir") return `[dir]  ${e.name}/`
+        const kb = e.size > 0 ? ` (${(e.size / 1024).toFixed(1)} KB)` : ""
+        return `[file] ${e.name}${kb}`
+      })
+      return { content: [{ type: "text" as const, text: lines.join("\n") }] }
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: `Error: ${String(err)}` }], isError: true }
+    }
+  },
+)
+
+server.registerTool(
+  "get_repo_file",
+  {
+    description: 'Read the source of a specific file in a GitHub repo. Use "owner/repo" format. Files over 100 KB are truncated.',
+    inputSchema: {
+      repo_name: z.string().describe('GitHub repo in "owner/repo" format'),
+      path:      z.string().describe('File path within the repo, e.g. "src/index.ts"'),
+    },
+  },
+  async ({ repo_name, path }) => {
+    try {
+      const { content, size, truncated } = await fetchFile(repo_name, path)
+      const footer = truncated
+        ? `\n\n— truncated (file is ${(size / 1024).toFixed(0)} KB; showing first 100 KB) —`
+        : ""
+      return { content: [{ type: "text" as const, text: content + footer }] }
     } catch (err) {
       return { content: [{ type: "text" as const, text: `Error: ${String(err)}` }], isError: true }
     }

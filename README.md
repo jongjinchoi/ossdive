@@ -137,12 +137,15 @@ When running from source:
       "command": "bun",
       "args": ["/Users/jongjinchoi/Documents/projects/ossdive/mcp/index.ts"],
       "env": {
-        "OSSDIVE_DB": "/Users/jongjinchoi/Documents/projects/ossdive/ossdive.db"
+        "OSSDIVE_DB": "/Users/jongjinchoi/Documents/projects/ossdive/ossdive.db",
+        "GITHUB_TOKEN": "ghp_..."
       }
     }
   }
 }
 ```
+
+> `GITHUB_TOKEN`을 설정하면 GitHub API rate limit이 60/h → 5,000/h으로 올라갑니다. `get_repo_readme` / `get_repo_files` / `get_repo_file` 툴에서 소스코드를 자주 조회할 경우 권장합니다.
 
 ### Available Tools
 
@@ -159,6 +162,9 @@ When running from source:
 | `add_bookmark` | Save a project to your bookmark list |
 | `remove_bookmark` | Remove a project from bookmarks |
 | `list_bookmarks` | List all bookmarked projects with current stats |
+| `get_repo_readme` | Fetch the README of any GitHub repo (`"owner/repo"`) |
+| `get_repo_files` | List files/directories in a repo path (shallow, one level) |
+| `get_repo_file` | Read source of a specific file in a repo (`path` within repo) |
 
 Example queries:
 ```
@@ -167,6 +173,8 @@ Example queries:
 "Find projects related to auth"
 "Give me ossdive collection stats"
 "List Rust projects from HN this week, sorted by post date"
+"Show me the README for this Go project and tell me if there's a TypeScript equivalent"
+"Read the main source file of vercel/ai and explain the architecture"
 ```
 
 ## DB Sync
