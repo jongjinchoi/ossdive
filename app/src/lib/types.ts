@@ -41,3 +41,5 @@ export interface ListOpts {
   sort_by?: 'hn_score' | 'stars' | 'last_commit_at' | 'collected_at' | 'hn_created_at'
   limit?: number
 }
+
+export type SyncStatus = 'fresh' | 'cached' | 'updated' | 'offline' | 'missing' | 'syncing'

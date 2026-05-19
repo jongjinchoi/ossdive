@@ -1,11 +1,30 @@
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager,
+    Emitter, Manager,
 };
 
 mod commands;
 mod db;
+mod sync;
+
+fn spawn_sync(app: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let status = sync::sync_db().await;
+
+        // Reopen connection when DB file was replaced
+        if matches!(status, sync::SyncStatus::Updated) {
+            if let Ok(new_conn) = db::open() {
+                let state = app.state::<db::DbState>();
+                if let Ok(mut guard) = state.0.lock() {
+                    *guard = new_conn;
+                };
+            }
+        }
+
+        let _ = app.emit("db-synced", &status);
+    });
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -17,6 +36,9 @@ pub fn run() {
 
             let db = db::open()?;
             app.manage(db::DbState(std::sync::Mutex::new(db)));
+
+            // Background sync on startup
+            spawn_sync(app.handle().clone());
 
             let quit = MenuItem::with_id(app, "quit", "Quit ossdive", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&quit])?;
@@ -44,14 +66,16 @@ pub fn run() {
                             if win.is_visible().unwrap_or(false) {
                                 let _ = win.hide();
                             } else {
-                                // position is PhysicalPosition<f64>; account for DPI scale
-                                let scale = win.scale_factor().unwrap_or(1.0);
-                                let half_w = (190.0 * scale) as i32; // 380px logical / 2 * scale
-                                let x = (position.x as i32 - half_w).max(0);
-                                let y = position.y as i32 + 4;
+                                let scale  = win.scale_factor().unwrap_or(1.0);
+                                let half_w = (190.0 * scale) as i32;
+                                let x      = (position.x as i32 - half_w).max(0);
+                                let y      = position.y as i32 + 4;
                                 let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
                                 let _ = win.show();
                                 let _ = win.set_focus();
+
+                                // Background sync on tray open (1h TTL inside sync_db)
+                                spawn_sync(app.clone());
                             }
                         }
                     }
