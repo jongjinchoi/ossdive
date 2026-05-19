@@ -1,24 +1,13 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod"
-import { join } from "node:path"
-import { homedir } from "node:os"
-import { existsSync } from "node:fs"
 import { openDB } from "../src/db/schema.ts"
 import { listProjects, searchProjects, getProject, getStats, getTrending, findSimilar, getHot } from "../src/db/queries.ts"
 import { fetchReadme, fetchDir, fetchFile } from "../src/github.ts"
 import { openBookmarksDB, addBookmark, removeBookmark, listBookmarks } from "../src/db/bookmarks.ts"
+import { syncDb } from "../cli/sync.ts"
+import { extractHnItemId, fetchHnThread } from "../src/hn.ts"
 import type { Project } from "../src/types.ts"
-
-function resolveDbPath(): string {
-  if (process.env["OSSDIVE_DB"]) return process.env["OSSDIVE_DB"]
-  const newPath = join(homedir(), ".ossdive", "ossdive.db")
-  if (existsSync(newPath)) return newPath
-  // Legacy fallback for users who haven't run CLI yet
-  const legacy = join(homedir(), ".ossriff", "ossriff.db")
-  if (existsSync(legacy)) return legacy
-  return "ossdive.db"
-}
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 
@@ -146,11 +135,17 @@ const server = new McpServer(
 - list_bookmarks: List all bookmarked projects
 - get_repo_readme: Fetch the README of any GitHub repo ("owner/repo")
 - get_repo_files: List files/directories in a GitHub repo path (one level, shallow)
-- get_repo_file: Read the source of a specific file in a GitHub repo`,
+- get_repo_file: Read the source of a specific file in a GitHub repo
+- get_hn_comments: Fetch the full HN comment thread for a project — use this to analyze community feedback (pain points, feature requests, form factor suggestions)`,
   },
 )
 
-const db  = openDB(resolveDbPath())
+const { path, status } = await syncDb()
+if (status === "missing") {
+  process.stderr.write("ossdive: database not found and network unavailable\n")
+  process.exit(1)
+}
+const db  = openDB(path)
 const bdb = openBookmarksDB()
 
 server.registerTool(
@@ -443,6 +438,61 @@ server.registerTool(
         ? `\n\n— truncated (file is ${(size / 1024).toFixed(0)} KB; showing first 100 KB) —`
         : ""
       return { content: [{ type: "text" as const, text: content + footer }] }
+    } catch (err) {
+      return { content: [{ type: "text" as const, text: `Error: ${String(err)}` }], isError: true }
+    }
+  },
+)
+
+server.registerTool(
+  "get_hn_comments",
+  {
+    description: "Fetch the full Hacker News comment thread for a project. Use this to analyze community feedback — pain points, feature requests, form factor suggestions, and comparisons with other tools. Useful for understanding what users wish the project did differently.",
+    inputSchema: {
+      repo_name: z.string().describe('GitHub repo in "owner/repo" format'),
+      limit:     z.number().int().min(1).max(500).optional().describe("Max comments to return (default: 200)"),
+    },
+  },
+  async ({ repo_name, limit = 200 }) => {
+    try {
+      const project = getProject(db, repo_name)
+      if (!project) {
+        return { content: [{ type: "text" as const, text: `Project "${repo_name}" not found.` }] }
+      }
+
+      if (project.hn_comments === 0) {
+        return { content: [{ type: "text" as const, text: `No comments on the HN post for "${repo_name}".` }] }
+      }
+
+      const itemId = extractHnItemId(project.hn_url)
+      if (!itemId) {
+        return { content: [{ type: "text" as const, text: `Could not extract HN item ID from URL: ${project.hn_url}` }], isError: true }
+      }
+
+      const comments  = await fetchHnThread(itemId, limit)
+      const truncated = comments.length >= limit && project.hn_comments > limit
+
+      const indent = (depth: number) => "  ".repeat(depth)
+      const lines: string[] = [
+        `# ${project.hn_title}`,
+        `HN Score: ${project.hn_score}  |  Comments: ${project.hn_comments}  |  ${project.hn_url}`,
+        "",
+      ]
+
+      for (const c of comments) {
+        lines.push(`${indent(c.depth)}[${c.author}]`)
+        const textLines = c.text.split("\n")
+        for (const tl of textLines) {
+          lines.push(`${indent(c.depth)}${tl}`)
+        }
+        lines.push("")
+      }
+
+      if (truncated) {
+        lines.push(`— showing ${comments.length} of ${project.hn_comments} comments (raise limit to see more) —`)
+      }
+
+      return { content: [{ type: "text" as const, text: lines.join("\n") }] }
     } catch (err) {
       return { content: [{ type: "text" as const, text: `Error: ${String(err)}` }], isError: true }
     }
