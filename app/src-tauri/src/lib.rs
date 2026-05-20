@@ -40,6 +40,17 @@ pub fn run() {
             // Background sync on startup
             spawn_sync(app.handle().clone());
 
+            // Periodic background sync — fires every 1h while the app is running.
+            // Tray-click is the only other trigger, and users often leave the menubar
+            // app running for days without opening the tray.
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                loop {
+                    std::thread::sleep(std::time::Duration::from_secs(3600));
+                    spawn_sync(handle.clone());
+                }
+            });
+
             let quit = MenuItem::with_id(app, "quit", "Quit ossdive", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&quit])?;
 
