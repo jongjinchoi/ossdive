@@ -44,11 +44,9 @@ pub fn run() {
             // Tray-click is the only other trigger, and users often leave the menubar
             // app running for days without opening the tray.
             let handle = app.handle().clone();
-            std::thread::spawn(move || {
-                loop {
-                    std::thread::sleep(std::time::Duration::from_secs(3600));
-                    spawn_sync(handle.clone());
-                }
+            std::thread::spawn(move || loop {
+                std::thread::sleep(std::time::Duration::from_secs(3600));
+                spawn_sync(handle.clone());
             });
 
             let quit = MenuItem::with_id(app, "quit", "Quit ossdive", true, None::<&str>)?;
@@ -77,10 +75,10 @@ pub fn run() {
                             if win.is_visible().unwrap_or(false) {
                                 let _ = win.hide();
                             } else {
-                                let scale  = win.scale_factor().unwrap_or(1.0);
+                                let scale = win.scale_factor().unwrap_or(1.0);
                                 let half_w = (190.0 * scale) as i32;
-                                let x      = (position.x as i32 - half_w).max(0);
-                                let y      = position.y as i32 + 4;
+                                let x = (position.x as i32 - half_w).max(0);
+                                let y = position.y as i32 + 4;
                                 let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
                                 let _ = win.show();
                                 let _ = win.set_focus();

@@ -64,14 +64,20 @@ fn row_to_project(row: &rusqlite::Row) -> rusqlite::Result<Project> {
         forks: row.get("forks")?,
         open_issues: row.get("open_issues")?,
         last_commit_at: row.get("last_commit_at")?,
-        hn_title: row.get::<_, Option<String>>("hn_title")?.unwrap_or_default(),
+        hn_title: row
+            .get::<_, Option<String>>("hn_title")?
+            .unwrap_or_default(),
         hn_score: row.get("hn_score")?,
         hn_comments: row.get("hn_comments")?,
         hn_url: row.get::<_, Option<String>>("hn_url")?.unwrap_or_default(),
         is_show_hn: row.get::<_, i64>("is_show_hn").map(|v| v != 0)?,
         hn_created_at: row.get("hn_created_at")?,
-        collected_at: row.get::<_, Option<String>>("collected_at")?.unwrap_or_default(),
-        updated_at: row.get::<_, Option<String>>("updated_at")?.unwrap_or_default(),
+        collected_at: row
+            .get::<_, Option<String>>("collected_at")?
+            .unwrap_or_default(),
+        updated_at: row
+            .get::<_, Option<String>>("updated_at")?
+            .unwrap_or_default(),
     })
 }
 
@@ -90,8 +96,11 @@ pub fn list_projects(
         _ => "hn_score",
     };
     let sql = match limit {
-        Some(n) => format!("SELECT * FROM projects ORDER BY {} DESC LIMIT {}", sort_col, n),
-        None    => format!("SELECT * FROM projects ORDER BY {} DESC", sort_col),
+        Some(n) => format!(
+            "SELECT * FROM projects ORDER BY {} DESC LIMIT {}",
+            sort_col, n
+        ),
+        None => format!("SELECT * FROM projects ORDER BY {} DESC", sort_col),
     };
     let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
     let rows: rusqlite::Result<Vec<Project>> = stmt
@@ -109,7 +118,10 @@ pub fn quit_app(app: tauri::AppHandle) {
 #[tauri::command]
 pub fn open_cli() {
     let _ = std::process::Command::new("osascript")
-        .args(["-e", r#"tell application "Terminal" to do script "ossdive""#])
+        .args([
+            "-e",
+            r#"tell application "Terminal" to do script "ossdive""#,
+        ])
         .spawn();
 }
 

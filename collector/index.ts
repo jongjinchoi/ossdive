@@ -1,3 +1,4 @@
+import type { Database } from "bun:sqlite"
 import { openDB, getLastSince, setLastSince, upsertProject, insertSnapshot } from "../src/db/schema.ts"
 import { DB_PATH as DEFAULT_DB_PATH, ensureConfigDir } from "../src/utils/fs.ts"
 import type { HNPost, GitHubRepo, Project } from "../src/types.ts"
@@ -14,6 +15,17 @@ interface HNResponse {
 }
 
 const WINDOW_SECS = 7 * 86400  // 7-day chunks to stay under Algolia's 1,000-result cap
+
+class GitHubRateLimitError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "GitHubRateLimitError"
+  }
+}
+
+function isGitHubRateLimitError(err: unknown): err is GitHubRateLimitError {
+  return err instanceof GitHubRateLimitError
+}
 
 async function fetchHNWindow(since: number, until: number): Promise<HNPost[]> {
   const all: HNPost[] = []
@@ -56,7 +68,7 @@ async function fetchHNPosts(since: number): Promise<HNPost[]> {
   return all
 }
 
-function extractRepoPath(rawUrl: string): string | null {
+export function extractRepoPath(rawUrl: string): string | null {
   let parsed: URL
   try {
     parsed = new URL(rawUrl)
@@ -93,13 +105,12 @@ async function fetchGitHubRepo(repoPath: string): Promise<GitHubRepo | null> {
 
   const res = await fetch(`https://api.github.com/repos/${repoPath}`, { headers })
 
+  if (res.status === 429 || (res.status === 403 && res.headers.get("x-ratelimit-remaining") === "0")) {
+    const reset = res.headers.get("x-ratelimit-reset")
+    throw new GitHubRateLimitError(`GitHub rate limit hit. Resets at ${reset ? new Date(Number(reset) * 1000).toISOString() : "unknown"}`)
+  }
   if (res.status === 404 || res.status === 403) {
     console.warn(`  [skip] ${repoPath}: HTTP ${res.status}`)
-    return null
-  }
-  if (res.status === 429 || res.headers.get("x-ratelimit-remaining") === "0") {
-    const reset = res.headers.get("x-ratelimit-reset")
-    console.warn(`  [warn] GitHub rate limit hit. Resets at ${reset ? new Date(Number(reset) * 1000).toISOString() : "unknown"}`)
     return null
   }
   if (!res.ok) {
@@ -130,6 +141,30 @@ function toProject(post: HNPost, repo: GitHubRepo): Project {
   }
 }
 
+type ProcessPostResult = "stored" | "skipped"
+
+export async function processPost(db: Database, post: HNPost): Promise<ProcessPostResult> {
+  const repoPath = extractRepoPath(post.url)
+  if (!repoPath) return "skipped"
+
+  let repo: GitHubRepo | null
+  try {
+    repo = await fetchGitHubRepo(repoPath)
+  } catch (err) {
+    if (isGitHubRateLimitError(err)) throw err
+    console.warn(`  [error] ${repoPath}: ${String(err)}`)
+    return "skipped"
+  }
+
+  if (!repo) return "skipped"
+  if (repo.stargazers_count < GH_MIN_STARS) return "skipped"
+
+  const project = toProject(post, repo)
+  const id = upsertProject(db, project)
+  insertSnapshot(db, id, project.hn_score, project.hn_comments)
+  return "stored"
+}
+
 async function main() {
   await ensureConfigDir()
   const db    = openDB(DB_PATH)
@@ -148,26 +183,11 @@ async function main() {
   let stored = 0
 
   for (const post of githubPosts) {
-    const repoPath = extractRepoPath(post.url)
-    if (!repoPath) continue
-
-    let repo: GitHubRepo | null
-    try {
-      repo = await fetchGitHubRepo(repoPath)
-    } catch (err) {
-      console.warn(`  [error] ${repoPath}: ${String(err)}`)
-      continue
+    const result = await processPost(db, post)
+    if (result === "stored") {
+      stored++
+      await Bun.sleep(100)
     }
-
-    if (!repo) continue
-    if (repo.stargazers_count < GH_MIN_STARS) continue
-
-    const project = toProject(post, repo)
-    const id = upsertProject(db, project)
-    insertSnapshot(db, id, project.hn_score, project.hn_comments)
-    stored++
-
-    await Bun.sleep(100)
   }
 
   // Refresh pass: re-fetch last 7 days to update HN scores for existing projects
@@ -175,10 +195,20 @@ async function main() {
   console.log("\nRefreshing HN scores for last 7 days…")
   const refreshPosts = await fetchHNWindow(now - 7 * 86400, now)
   let refreshed = 0
+  let lateStored = 0
   for (const post of refreshPosts) {
     const hnUrl = `https://news.ycombinator.com/item?id=${post.objectID}`
     const existing = db.prepare("SELECT id FROM projects WHERE hn_url = ?").get(hnUrl) as { id: number } | null
-    if (!existing) continue
+    if (!existing) {
+      if (!post.url?.includes("github.com")) continue
+      const result = await processPost(db, post)
+      if (result === "stored") {
+        lateStored++
+        stored++
+        await Bun.sleep(100)
+      }
+      continue
+    }
     db.prepare(
       "UPDATE projects SET hn_score = ?, hn_comments = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
     ).run(post.points, post.num_comments, existing.id)
@@ -186,6 +216,7 @@ async function main() {
     refreshed++
   }
   console.log(`  → ${refreshed} projects refreshed`)
+  console.log(`  → ${lateStored} late-threshold projects stored`)
 
   // Prune snapshots older than 90 days
   db.exec("DELETE FROM project_snapshots WHERE snapshot_at < DATE('now', '-90 days')")
@@ -200,4 +231,11 @@ async function main() {
   db.close()
 }
 
-await main()
+if (import.meta.main) {
+  try {
+    await main()
+  } catch (err) {
+    console.error(String(err))
+    process.exit(1)
+  }
+}

@@ -1,6 +1,7 @@
 {
   "name": "ossdive",
   "version": "0.3.0",
+  "license": "MIT",
   "type": "module",
   "bin": {
     "ossdive": "dist/npm/index.js"
@@ -19,6 +20,7 @@
     "backfill:hn-dates": "bun run collector/backfill-hn-dates.ts",
     "mcp": "bun run mcp/index.ts",
     "cli": "bun run cli/index.ts",
+    "test": "bun test",
     "build:npm": "bun run build-npm.ts",
     "build:bin": "bun run build.ts",
     "prepack": "bun run build-npm.ts"

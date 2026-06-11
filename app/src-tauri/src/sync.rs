@@ -21,21 +21,49 @@ pub enum SyncStatus {
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SyncMeta {
-    asset_id:   u64,
+    asset_id: u64,
     updated_at: String,
-    synced_at:  u64,
+    synced_at: u64,
 }
 
 #[derive(Deserialize)]
 struct GhAsset {
-    id:         u64,
-    name:       String,
+    id: u64,
+    name: String,
     updated_at: String,
 }
 
 #[derive(Deserialize)]
 struct GhRelease {
     assets: Vec<GhAsset>,
+}
+
+fn is_versioned_db_asset(name: &str) -> bool {
+    name.starts_with("ossdive-") && name.ends_with(".db")
+}
+
+fn select_db_asset(assets: Vec<GhAsset>) -> Option<GhAsset> {
+    let mut legacy: Option<GhAsset> = None;
+    let mut versioned: Vec<GhAsset> = assets
+        .into_iter()
+        .filter_map(|asset| {
+            if is_versioned_db_asset(&asset.name) {
+                Some(asset)
+            } else if asset.name == "ossdive.db" {
+                legacy = Some(asset);
+                None
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    versioned.sort_by(|a, b| a.updated_at.cmp(&b.updated_at));
+    if let Some(asset) = versioned.pop() {
+        return Some(asset);
+    }
+
+    legacy
 }
 
 fn now_millis() -> u64 {
@@ -70,7 +98,13 @@ macro_rules! or_fallback {
     ($expr:expr, $db:expr) => {
         match $expr {
             Ok(v) => v,
-            Err(_) => return if $db.exists() { SyncStatus::Offline } else { SyncStatus::Missing },
+            Err(_) => {
+                return if $db.exists() {
+                    SyncStatus::Offline
+                } else {
+                    SyncStatus::Missing
+                }
+            }
         }
     };
 }
@@ -81,7 +115,7 @@ pub async fn sync_db() -> SyncStatus {
         return SyncStatus::Cached;
     }
 
-    let db   = db_path();
+    let db = db_path();
     let meta = tauri::async_runtime::spawn_blocking(read_meta)
         .await
         .unwrap_or(None);
@@ -111,18 +145,24 @@ pub async fn sync_db() -> SyncStatus {
     let resp = or_fallback!(resp.error_for_status(), db);
     let release: GhRelease = or_fallback!(resp.json().await, db);
 
-    let asset = match release.assets.into_iter().find(|a| a.name == "ossdive.db") {
+    let asset = match select_db_asset(release.assets) {
         Some(a) => a,
-        None => return if db.exists() { SyncStatus::Offline } else { SyncStatus::Missing },
+        None => {
+            return if db.exists() {
+                SyncStatus::Offline
+            } else {
+                SyncStatus::Missing
+            }
+        }
     };
 
     // Same version as cached — update synced_at only
     if let Some(ref m) = meta {
         if m.updated_at == asset.updated_at && db.exists() {
             let new_meta = SyncMeta {
-                asset_id:   m.asset_id,
+                asset_id: m.asset_id,
                 updated_at: m.updated_at.clone(),
-                synced_at:  now_millis(),
+                synced_at: now_millis(),
             };
             let _ = tauri::async_runtime::spawn_blocking(move || write_meta(&new_meta)).await;
             return SyncStatus::Fresh;
@@ -143,15 +183,15 @@ pub async fn sync_db() -> SyncStatus {
             .await,
         db
     );
-    let resp  = or_fallback!(resp.error_for_status(), db);
+    let resp = or_fallback!(resp.error_for_status(), db);
     let bytes = or_fallback!(resp.bytes().await, db);
 
-    let tmp      = config_dir().join("ossdive.db.tmp");
+    let tmp = config_dir().join("ossdive.db.tmp");
     let db_clone = db.clone();
     let new_meta = SyncMeta {
-        asset_id:   asset.id,
+        asset_id: asset.id,
         updated_at: asset.updated_at,
-        synced_at:  now_millis(),
+        synced_at: now_millis(),
     };
 
     let result = tauri::async_runtime::spawn_blocking(move || -> std::io::Result<()> {
@@ -165,6 +205,12 @@ pub async fn sync_db() -> SyncStatus {
 
     match result {
         Ok(Ok(())) => SyncStatus::Updated,
-        _ => if db.exists() { SyncStatus::Offline } else { SyncStatus::Missing },
+        _ => {
+            if db.exists() {
+                SyncStatus::Offline
+            } else {
+                SyncStatus::Missing
+            }
+        }
     }
 }

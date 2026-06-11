@@ -5,7 +5,9 @@ use std::sync::Mutex;
 pub struct DbState(pub Mutex<Connection>);
 
 pub fn config_dir() -> PathBuf {
-    dirs::home_dir().expect("cannot find home directory").join(".ossdive")
+    dirs::home_dir()
+        .expect("cannot find home directory")
+        .join(".ossdive")
 }
 
 pub fn meta_path() -> PathBuf {
@@ -16,10 +18,12 @@ pub fn db_path() -> PathBuf {
     if let Ok(p) = std::env::var("OSSDIVE_DB") {
         return PathBuf::from(p);
     }
-    let dir    = config_dir();
+    let dir = config_dir();
     let new_db = dir.join("ossdive.db");
-    let legacy = dirs::home_dir().expect("cannot find home directory")
-        .join(".ossriff").join("ossriff.db");
+    let legacy = dirs::home_dir()
+        .expect("cannot find home directory")
+        .join(".ossriff")
+        .join("ossriff.db");
     if !new_db.exists() && legacy.exists() {
         let _ = std::fs::create_dir_all(&dir);
         let _ = std::fs::rename(&legacy, &new_db);

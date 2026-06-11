@@ -1,4 +1,6 @@
 import { CONFIG_DIR, DB_PATH, META_PATH, ensureConfigDir, fileExists, readJson, writeJson } from "../src/utils/fs.ts"
+import { rename, unlink } from "node:fs/promises"
+import { Database } from "bun:sqlite"
 
 const REPO = "jongjinchoi/ossdive"
 const TAG  = "db-latest"
@@ -23,6 +25,14 @@ interface GHRelease {
 
 export type SyncStatus = "fresh" | "cached" | "updated" | "offline" | "missing"
 
+export function selectDbAsset(assets: GHAsset[]): GHAsset | undefined {
+  const versioned = assets
+    .filter(a => /^ossdive-[A-Za-z0-9_.-]+\.db$/.test(a.name))
+    .sort((a, b) => a.updated_at.localeCompare(b.updated_at))
+
+  return versioned.at(-1) ?? assets.find(a => a.name === "ossdive.db")
+}
+
 function apiHeaders(): Record<string, string> {
   const headers: Record<string, string> = { "Accept": "application/vnd.github+json" }
   if (process.env["GITHUB_TOKEN"]) {
@@ -46,7 +56,27 @@ async function downloadAsset(assetId: number, dest: string): Promise<void> {
   })
   if (!res.ok) throw new Error(`Download failed ${res.status}: ${res.statusText}`)
   const buf = await res.arrayBuffer()
-  await Bun.write(dest, buf)
+  const tmp = `${dest}.tmp-${process.pid}-${Date.now()}`
+  try {
+    await Bun.write(tmp, buf)
+    assertValidSQLite(tmp)
+    await rename(tmp, dest)
+  } catch (err) {
+    await unlink(tmp).catch(() => {})
+    throw err
+  }
+}
+
+function assertValidSQLite(path: string): void {
+  const db = new Database(path, { readonly: true, strict: true })
+  try {
+    const row = db.prepare("PRAGMA integrity_check").get() as { integrity_check: string }
+    if (row.integrity_check !== "ok") {
+      throw new Error(`Downloaded DB failed integrity_check: ${row.integrity_check}`)
+    }
+  } finally {
+    db.close()
+  }
 }
 
 export async function syncDb({ force = false }: { force?: boolean } = {}): Promise<{
@@ -68,7 +98,7 @@ export async function syncDb({ force = false }: { force?: boolean } = {}): Promi
 
   try {
     const release = await fetchRelease()
-    const asset   = release.assets.find(a => a.name === "ossdive.db")
+    const asset   = selectDbAsset(release.assets)
     if (!asset) throw new Error("ossdive.db asset not found in db-latest release")
 
     // Same version as cached: update syncedAt timestamp, skip download

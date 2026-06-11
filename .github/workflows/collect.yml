@@ -28,7 +28,20 @@ jobs:
       - run: bun install --frozen-lockfile
 
       - name: Download latest DB
-        run: gh release download db-latest --pattern ossdive.db || echo "No existing release — starting fresh"
+        run: |
+          set -euo pipefail
+
+          if ! gh release view db-latest >/dev/null 2>&1; then
+            echo "No existing release — starting fresh"
+            exit 0
+          fi
+
+          ASSET="$(gh release view db-latest --json assets --jq '.assets | map(select((.name | startswith("ossdive-")) and (.name | endswith(".db")))) | sort_by(.updatedAt) | last | .name // ""')"
+          if [ -n "$ASSET" ]; then
+            gh release download db-latest --pattern "$ASSET" --output ossdive.db
+          else
+            gh release download db-latest --pattern ossdive.db --output ossdive.db || echo "No existing DB asset — starting fresh"
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -40,10 +53,21 @@ jobs:
 
       - name: Upload DB to Releases
         run: |
-          gh release delete db-latest --cleanup-tag --yes 2>/dev/null || true
-          gh release create db-latest ossdive.db \
+          set -euo pipefail
+
+          ASSET="ossdive-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.db"
+          cp ossdive.db "$ASSET"
+
+          if ! gh release view db-latest >/dev/null 2>&1; then
+            gh release create db-latest \
+              --title "DB latest" \
+              --notes "Auto-updated every 6 hours by GitHub Actions." \
+              --latest=false
+          fi
+
+          gh release upload db-latest "$ASSET"
+          gh release edit db-latest \
             --title "DB $(date -u '+%Y-%m-%d %H:%M') UTC" \
-            --notes "Auto-updated every 6 hours by GitHub Actions." \
-            --latest
+            --notes "Latest DB asset: $ASSET"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

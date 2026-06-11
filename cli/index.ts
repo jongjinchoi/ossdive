@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { Command } from "commander"
+import { Command, Option } from "commander"
 import { syncDb } from "./sync.ts"
 import { openDB } from "../src/db/schema.ts"
 import { listProjects, searchProjects, getProject, getStats, getTrending, findSimilar, getHot } from "../src/db/queries.ts"
@@ -140,7 +140,7 @@ program
   .option("-c, --min-score <n>",  "Minimum HN score",        int)
   .option("--since <range>",      '"7d" / "30d" / "1y" / ISO date')
   .option("--show-hn",            "Show HN posts only")
-  .option("--sort <field>",       "hn_score | stars | last_commit_at | collected_at | hn_created_at", "hn_score")
+  .addOption(new Option("--sort <field>", "Sort field").choices(["hn_score", "stars", "last_commit_at", "collected_at", "hn_created_at"]).default("hn_score"))
   .option("-n, --limit <n>",      "Max results (default: 50)", int, 50)
   .option("--no-tui",             "Plain text output (always on when not a TTY)")
   .action(async (opts) => {
