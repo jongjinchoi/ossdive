@@ -1,3 +1,4 @@
+import type { Database } from "bun:sqlite"
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod"
@@ -7,113 +8,8 @@ import { fetchReadme, fetchDir, fetchFile } from "../src/github.ts"
 import { openBookmarksDB, addBookmark, removeBookmark, listBookmarks } from "../src/db/bookmarks.ts"
 import { syncDb } from "../cli/sync.ts"
 import { extractHnItemId, fetchHnThread } from "../src/hn.ts"
+import { formatProjectList, formatProjectDetail, formatCompare, formatStats } from "../src/format.ts"
 import type { Project } from "../src/types.ts"
-
-// ── Formatters ────────────────────────────────────────────────────────────────
-
-function truncate(s: string | null, n: number): string {
-  if (!s) return "—"
-  return s.length <= n ? s : s.slice(0, n - 1) + "…"
-}
-
-function formatList(projects: Project[], total?: number): string {
-  if (projects.length === 0) return "No projects found."
-
-  const lines: string[] = []
-  for (const p of projects) {
-    const lang = p.language ?? "—"
-    const desc = truncate(p.description, 80)
-    lines.push(`★${String(p.stars).padStart(6)}  HN:${String(p.hn_score).padStart(4)}  [${lang}]  ${p.repo_name}`)
-    lines.push(`  ${desc}`)
-    lines.push(`  GitHub: ${p.github_url}  |  HN: ${p.hn_url}`)
-    lines.push("")
-  }
-
-  const footer = total !== undefined
-    ? `Found ${total} / showing ${projects.length}`
-    : `Showing ${projects.length}`
-  lines.push(footer)
-  return lines.join("\n")
-}
-
-function formatProject(p: Project): string {
-  const lines = [
-    `# ${p.repo_name}`,
-    ``,
-    `Description : ${p.description ?? "—"}`,
-    `Language    : ${p.language ?? "—"}`,
-    `License     : ${p.license ?? "—"}`,
-    `Stars       : ${p.stars.toLocaleString()}`,
-    `Forks       : ${p.forks.toLocaleString()}`,
-    `Open Issues : ${p.open_issues.toLocaleString()}`,
-    `Last Commit : ${p.last_commit_at ?? "—"}`,
-    ``,
-    `HN Title    : ${p.hn_title}`,
-    `HN Score    : ${p.hn_score}`,
-    `HN Comments : ${p.hn_comments}`,
-    `HN Posted   : ${p.hn_created_at ?? "—"}`,
-    `Show HN     : ${p.is_show_hn ? "Yes" : "No"}`,
-    `Collected   : ${p.collected_at ?? "—"}`,
-    ``,
-    `GitHub : ${p.github_url}`,
-    `HN     : ${p.hn_url}`,
-  ]
-  return lines.join("\n")
-}
-
-function formatCompare(projects: Project[]): string {
-  if (projects.length === 0) return "No projects to compare."
-
-  const COL = 20
-  const lines: string[] = []
-  const header = " ".repeat(COL) + projects.map(p => p.repo_name.padEnd(22)).join("")
-  lines.push(header)
-  lines.push("─".repeat(COL + projects.length * 22))
-
-  function row(label: string, vals: string[]): void {
-    lines.push(label.padEnd(COL) + vals.map(v => v.padEnd(22)).join(""))
-  }
-
-  row("Stars",        projects.map(p => `★ ${p.stars.toLocaleString()}`))
-  row("Forks",        projects.map(p => p.forks.toLocaleString()))
-  row("Open Issues",  projects.map(p => p.open_issues.toLocaleString()))
-  row("HN Score",     projects.map(p => String(p.hn_score)))
-  row("HN Comments",  projects.map(p => String(p.hn_comments)))
-  row("Last Commit",  projects.map(p => p.last_commit_at?.slice(0, 10) ?? "—"))
-  row("Language",     projects.map(p => p.language ?? "—"))
-  row("License",      projects.map(p => p.license ?? "—"))
-  row("Show HN",      projects.map(p => p.is_show_hn ? "Yes" : "No"))
-
-  return lines.join("\n")
-}
-
-function formatStats(stats: ReturnType<typeof getStats>): string {
-  const lines = [
-    `# ossdive Stats`,
-    ``,
-    `Total projects : ${stats.total.toLocaleString()}`,
-    `Show HN        : ${stats.showHnCount.toLocaleString()}`,
-    ``,
-    `## Top Languages`,
-  ]
-
-  for (const { lang, count } of stats.byLanguage) {
-    lines.push(`  ${lang.padEnd(20)} ${count}`)
-  }
-
-  lines.push(``, `## Top 5 by Stars`)
-  for (const { repo_name, stars } of stats.top5Stars) {
-    lines.push(`  ★${String(stars).padStart(7)}  ${repo_name}`)
-  }
-
-  if (stats.collectedAtRange) {
-    lines.push(``, `## Collection Range`)
-    lines.push(`  First : ${stats.collectedAtRange.first}`)
-    lines.push(`  Last  : ${stats.collectedAtRange.last}`)
-  }
-
-  return lines.join("\n")
-}
 
 // ── MCP Server ────────────────────────────────────────────────────────────────
 
@@ -145,8 +41,22 @@ if (status === "missing") {
   process.stderr.write("ossdive: database not found and network unavailable\n")
   process.exit(1)
 }
-const db  = openDB(path)
+let dbPath = path
+let db: Database = openDB(dbPath)
 const bdb = openBookmarksDB()
+
+async function getMainDb(): Promise<Database> {
+  const result = await syncDb()
+  if (result.status === "missing") {
+    throw new Error("database not found and network unavailable")
+  }
+  if (result.status === "updated" || result.path !== dbPath) {
+    db.close()
+    dbPath = result.path
+    db = openDB(dbPath)
+  }
+  return db
+}
 
 server.registerTool(
   "list_projects",
@@ -164,11 +74,12 @@ server.registerTool(
   },
   async ({ lang, min_stars, min_score, since, is_show_hn, sort_by, limit }) => {
     try {
+      const db = await getMainDb()
       const projects = listProjects(db, {
         lang, minStars: min_stars, minScore: min_score,
         since, isShowHn: is_show_hn, sortBy: sort_by, limit,
       })
-      return { content: [{ type: "text" as const, text: formatList(projects) }] }
+      return { content: [{ type: "text" as const, text: formatProjectList(projects, { includeHnUrl: true }) }] }
     } catch (err) {
       return { content: [{ type: "text" as const, text: `Error: ${String(err)}` }], isError: true }
     }
@@ -186,8 +97,9 @@ server.registerTool(
   },
   async ({ query, limit }) => {
     try {
+      const db = await getMainDb()
       const projects = searchProjects(db, query, limit)
-      return { content: [{ type: "text" as const, text: formatList(projects) }] }
+      return { content: [{ type: "text" as const, text: formatProjectList(projects, { includeHnUrl: true }) }] }
     } catch (err) {
       return { content: [{ type: "text" as const, text: `Error: ${String(err)}` }], isError: true }
     }
@@ -204,11 +116,12 @@ server.registerTool(
   },
   async ({ repo_name }) => {
     try {
+      const db = await getMainDb()
       const project = getProject(db, repo_name)
       if (!project) {
         return { content: [{ type: "text" as const, text: `Project "${repo_name}" not found.` }] }
       }
-      return { content: [{ type: "text" as const, text: formatProject(project) }] }
+      return { content: [{ type: "text" as const, text: formatProjectDetail(project, { includeCollectedAt: true }) }] }
     } catch (err) {
       return { content: [{ type: "text" as const, text: `Error: ${String(err)}` }], isError: true }
     }
@@ -223,8 +136,9 @@ server.registerTool(
   },
   async () => {
     try {
+      const db = await getMainDb()
       const stats = getStats(db)
-      return { content: [{ type: "text" as const, text: formatStats(stats) }] }
+      return { content: [{ type: "text" as const, text: formatStats(stats, { heading: "# ossdive Stats" }) }] }
     } catch (err) {
       return { content: [{ type: "text" as const, text: `Error: ${String(err)}` }], isError: true }
     }
@@ -242,8 +156,9 @@ server.registerTool(
   },
   async ({ since, limit }) => {
     try {
+      const db = await getMainDb()
       const projects = getTrending(db, { since, limit })
-      return { content: [{ type: "text" as const, text: formatList(projects) }] }
+      return { content: [{ type: "text" as const, text: formatProjectList(projects, { includeHnUrl: true }) }] }
     } catch (err) {
       return { content: [{ type: "text" as const, text: `Error: ${String(err)}` }], isError: true }
     }
@@ -260,6 +175,7 @@ server.registerTool(
   },
   async ({ repos }) => {
     try {
+      const db = await getMainDb()
       const projects = repos.map(r => getProject(db, r))
       const missing  = repos.filter((_, i) => !projects[i])
       if (missing.length) {
@@ -283,11 +199,12 @@ server.registerTool(
   },
   async ({ repo_name, limit }) => {
     try {
+      const db = await getMainDb()
       const projects = findSimilar(db, repo_name, limit)
       if (projects.length === 0) {
         return { content: [{ type: "text" as const, text: `No similar projects found for "${repo_name}".` }] }
       }
-      return { content: [{ type: "text" as const, text: formatList(projects) }] }
+      return { content: [{ type: "text" as const, text: formatProjectList(projects, { includeHnUrl: true }) }] }
     } catch (err) {
       return { content: [{ type: "text" as const, text: `Error: ${String(err)}` }], isError: true }
     }
@@ -305,11 +222,12 @@ server.registerTool(
   },
   async ({ since, limit }) => {
     try {
+      const db = await getMainDb()
       const projects = getHot(db, { since, limit })
       if (projects.length === 0) {
         return { content: [{ type: "text" as const, text: "No hot projects found. Snapshot data needs at least 2 days to compute velocity." }] }
       }
-      return { content: [{ type: "text" as const, text: formatList(projects) }] }
+      return { content: [{ type: "text" as const, text: formatProjectList(projects, { includeHnUrl: true }) }] }
     } catch (err) {
       return { content: [{ type: "text" as const, text: `Error: ${String(err)}` }], isError: true }
     }
@@ -326,6 +244,7 @@ server.registerTool(
   },
   async ({ repo_name }) => {
     try {
+      const db = await getMainDb()
       const project = getProject(db, repo_name)
       if (!project) {
         return { content: [{ type: "text" as const, text: `Project "${repo_name}" not found in ossdive DB.` }], isError: true }
@@ -365,12 +284,13 @@ server.registerTool(
   },
   async () => {
     try {
+      const db = await getMainDb()
       const { projects, archived } = listBookmarks(bdb, db)
       if (projects.length === 0 && archived.length === 0) {
         return { content: [{ type: "text" as const, text: "No bookmarks saved." }] }
       }
       const lines: string[] = []
-      if (projects.length > 0) lines.push(formatList(projects))
+      if (projects.length > 0) lines.push(formatProjectList(projects, { includeHnUrl: true }))
       if (archived.length > 0) lines.push(`\nArchived (no longer in DB): ${archived.join(", ")}`)
       return { content: [{ type: "text" as const, text: lines.join("\n") }] }
     } catch (err) {
@@ -455,6 +375,7 @@ server.registerTool(
   },
   async ({ repo_name, limit = 200 }) => {
     try {
+      const db = await getMainDb()
       const project = getProject(db, repo_name)
       if (!project) {
         return { content: [{ type: "text" as const, text: `Project "${repo_name}" not found.` }] }

@@ -5,6 +5,7 @@ import { openDB } from "../src/db/schema.ts"
 import { listProjects, searchProjects, getProject, getStats, getTrending, findSimilar, getHot } from "../src/db/queries.ts"
 import type { ListProjectsOpts } from "../src/db/queries.ts"
 import { openBookmarksDB, addBookmark, removeBookmark, listBookmarks } from "../src/db/bookmarks.ts"
+import { formatProjectList, formatProjectDetail, formatCompare, formatStats } from "../src/format.ts"
 import type { Project } from "../src/types.ts"
 
 declare const PKG_VERSION: string
@@ -12,92 +13,20 @@ const VERSION = typeof PKG_VERSION !== "undefined" ? PKG_VERSION : "0.0.0-dev"
 
 const int = (v: string): number => Number.parseInt(v, 10)
 
-// ── Plain-text formatters (for non-TTY / --no-tui) ───────────────────────────
-
-function truncate(s: string | null, n: number): string {
-  if (!s) return "—"
-  return s.length <= n ? s : s.slice(0, n - 1) + "…"
-}
-
 function printPlainList(projects: Project[]): void {
-  if (projects.length === 0) {
-    console.log("No projects found.")
-    return
-  }
-  for (const p of projects) {
-    const lang = p.language ?? "—"
-    console.log(`★${String(p.stars).padStart(7)}  HN:${String(p.hn_score).padStart(4)}  [${lang}]  ${p.repo_name}`)
-    console.log(`  ${truncate(p.description, 80)}`)
-    console.log(`  ${p.github_url}`)
-    console.log()
-  }
-  console.log(`Showing ${projects.length}`)
+  console.log(formatProjectList(projects))
 }
 
 function printDetail(p: Project): void {
-  const lines = [
-    `# ${p.repo_name}`,
-    ``,
-    `Description : ${p.description ?? "—"}`,
-    `Language    : ${p.language ?? "—"}`,
-    `License     : ${p.license ?? "—"}`,
-    `Stars       : ${p.stars.toLocaleString()}`,
-    `Forks       : ${p.forks.toLocaleString()}`,
-    `Open Issues : ${p.open_issues.toLocaleString()}`,
-    `Last Commit : ${p.last_commit_at ?? "—"}`,
-    ``,
-    `HN Title    : ${p.hn_title}`,
-    `HN Score    : ${p.hn_score}`,
-    `HN Comments : ${p.hn_comments}`,
-    `HN Posted   : ${p.hn_created_at ?? "—"}`,
-    `Show HN     : ${p.is_show_hn ? "Yes" : "No"}`,
-    ``,
-    `GitHub : ${p.github_url}`,
-    `HN     : ${p.hn_url}`,
-  ]
-  console.log(lines.join("\n"))
+  console.log(formatProjectDetail(p))
 }
 
 function printStats(stats: ReturnType<typeof getStats>): void {
-  console.log(`Total projects : ${stats.total.toLocaleString()}`)
-  console.log(`Show HN        : ${stats.showHnCount.toLocaleString()}`)
-  console.log()
-  console.log("Top Languages:")
-  for (const { lang, count } of stats.byLanguage) {
-    console.log(`  ${lang.padEnd(20)} ${count}`)
-  }
-  console.log()
-  console.log("Top 5 by Stars:")
-  for (const { repo_name, stars } of stats.top5Stars) {
-    console.log(`  ★${String(stars).padStart(7)}  ${repo_name}`)
-  }
-  if (stats.collectedAtRange) {
-    console.log()
-    console.log(`Collection range: ${stats.collectedAtRange.first} → ${stats.collectedAtRange.last}`)
-  }
+  console.log(formatStats(stats))
 }
 
 function printCompare(projects: Project[]): void {
-  if (projects.length === 0) { console.log("No projects to compare."); return }
-
-  const COL = 22
-  const header = "  " + " ".repeat(COL) + projects.map(p => p.repo_name.padEnd(20)).join("  ")
-  console.log(header)
-  console.log("  " + "─".repeat(COL + projects.length * 22))
-
-  function row(label: string, vals: string[]): void {
-    console.log("  " + label.padEnd(COL) + vals.map(v => v.padEnd(20)).join("  "))
-  }
-
-  row("Stars",        projects.map(p => `★ ${p.stars.toLocaleString()}`))
-  row("Forks",        projects.map(p => p.forks.toLocaleString()))
-  row("Open Issues",  projects.map(p => p.open_issues.toLocaleString()))
-  row("HN Score",     projects.map(p => String(p.hn_score)))
-  row("HN Comments",  projects.map(p => String(p.hn_comments)))
-  row("Last Commit",  projects.map(p => p.last_commit_at?.slice(0, 10) ?? "—"))
-  row("Language",     projects.map(p => p.language ?? "—"))
-  row("License",      projects.map(p => p.license ?? "—"))
-  row("Show HN",      projects.map(p => p.is_show_hn ? "Yes" : "No"))
+  console.log(formatCompare(projects))
 }
 
 function printSyncStatus(status: string): void {
@@ -389,6 +318,7 @@ bookmark
         const instance = render(
           React.createElement(BookmarkListView, {
             projects,
+            archived,
             onDelete: (repoName: string) => rmBk(bdb, repoName),
           }),
           {}

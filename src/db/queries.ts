@@ -11,13 +11,15 @@ export interface HotOpts {
   limit?: number
 }
 
+export type ProjectSortField = "hn_score" | "stars" | "last_commit_at" | "collected_at" | "hn_created_at"
+
 export interface ListProjectsOpts {
   lang?:       string
   minStars?:   number
   minScore?:   number
   since?:      string   // "7d", "30d", "1y", or ISO date "2025-01-01"
   isShowHn?:   boolean
-  sortBy?:     "hn_score" | "stars" | "last_commit_at" | "collected_at" | "hn_created_at"
+  sortBy?:     ProjectSortField
   limit?:      number
 }
 
@@ -29,8 +31,12 @@ export interface Stats {
   collectedAtRange:  { first: string; last: string } | null
 }
 
-// Converts "7d", "30d", "1y", or ISO date into a SQLite datetime string
-function parseSince(since: string): string | null {
+function toSqliteUtc(date: Date): string {
+  return date.toISOString().replace("T", " ").replace(/\.\d{3}Z$/, "")
+}
+
+// Converts "7d", "30d", "1y", or ISO date into a SQLite UTC datetime string.
+export function parseSince(since: string): string | null {
   const shorthand = since.match(/^(\d+)(d|w|m|y)$/)
   if (shorthand) {
     const amount = Number(shorthand[1])
@@ -41,15 +47,17 @@ function parseSince(since: string): string | null {
                  : unit === "y" ? amount * 365 * 86400_000
                  : null
     if (!ms) return null
-    return new Date(Date.now() - ms).toISOString()
+    return toSqliteUtc(new Date(Date.now() - ms))
   }
 
   // ISO date or datetime
   const parsed = new Date(since)
-  if (!isNaN(parsed.getTime())) return parsed.toISOString()
+  if (!isNaN(parsed.getTime())) return toSqliteUtc(parsed)
 
   return null
 }
+
+const LANGUAGE_GROUP_SQL = "CASE WHEN language IN ('C','C++') THEN 'C/C++' ELSE COALESCE(language, 'Unknown') END"
 
 function rowToProject(row: Record<string, unknown>): Project {
   return {
@@ -99,7 +107,7 @@ export function listProjects(db: Database, opts: ListProjectsOpts = {}): Project
   if (since) {
     const dt = parseSince(since)
     if (dt) {
-      conditions.push("collected_at >= ?")
+      conditions.push("hn_created_at IS NOT NULL AND datetime(hn_created_at) >= datetime(?)")
       params.push(dt)
     }
   }
@@ -155,7 +163,7 @@ export function getTrending(db: Database, opts: TrendingOpts = {}): Project[] {
   const sql = `
     SELECT *
     FROM projects
-    WHERE hn_created_at IS NOT NULL AND hn_created_at >= ?
+    WHERE hn_created_at IS NOT NULL AND datetime(hn_created_at) >= datetime(?)
     ORDER BY (hn_score + hn_comments * 2) DESC
     LIMIT ?
   `
@@ -225,7 +233,7 @@ export function getStats(db: Database): Stats {
   const showHnCount = (db.prepare("SELECT COUNT(*) as n FROM projects WHERE is_show_hn = 1").get() as { n: number }).n
 
   const byLanguage = db.prepare(`
-    SELECT COALESCE(language, 'Unknown') as lang, COUNT(*) as count
+    SELECT ${LANGUAGE_GROUP_SQL} as lang, COUNT(*) as count
     FROM projects
     GROUP BY lang
     ORDER BY count DESC

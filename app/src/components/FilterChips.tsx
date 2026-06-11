@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react"
-import type { Project } from "../lib/types"
+import type { LangCount } from "../lib/types"
 
 const TOP_LANGS = 2
 
@@ -7,30 +7,18 @@ function langToKey(lang: string): string {
   return lang === "C/C++" ? "c" : lang.toLowerCase()
 }
 
-function getLangCounts(projects: Project[]) {
-  const counts: Record<string, number> = {}
-  projects.forEach((p) => {
-    const lang = p.language === "C" || p.language === "C++" ? "C/C++" : (p.language ?? "Unknown")
-    counts[lang] = (counts[lang] ?? 0) + 1
-  })
-  return Object.entries(counts)
-    .sort((a, b) => b[1] - a[1])
-    .map(([lang, count]) => ({ lang, count }))
-}
-
 interface FilterChipsProps {
-  projects: Project[]
+  languages: LangCount[]
   filter: string
   onChange: (f: string) => void
 }
 
-export function FilterChips({ projects, filter, onChange }: FilterChipsProps) {
+export function FilterChips({ languages, filter, onChange }: FilterChipsProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
 
-  const langCounts = getLangCounts(projects)
-  const top = langCounts.slice(0, TOP_LANGS)
-  const rest = langCounts.slice(TOP_LANGS)
+  const top = languages.slice(0, TOP_LANGS)
+  const rest = languages.slice(TOP_LANGS)
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {

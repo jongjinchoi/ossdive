@@ -1,3 +1,4 @@
+use rusqlite::{params_from_iter, types::Value};
 use serde::Serialize;
 use tauri::State;
 
@@ -81,10 +82,19 @@ fn row_to_project(row: &rusqlite::Row) -> rusqlite::Result<Project> {
     })
 }
 
+fn escape_like(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
+}
+
 #[tauri::command]
 pub fn list_projects(
     state: State<'_, DbState>,
     sort_by: Option<String>,
+    query: Option<String>,
+    filter: Option<String>,
     limit: Option<i64>,
 ) -> Result<Vec<Project>, String> {
     let conn = state.0.lock().map_err(|e| e.to_string())?;
@@ -95,16 +105,44 @@ pub fn list_projects(
         Some("hn_created_at") => "hn_created_at",
         _ => "hn_score",
     };
-    let sql = match limit {
-        Some(n) => format!(
-            "SELECT * FROM projects ORDER BY {} DESC LIMIT {}",
-            sort_col, n
-        ),
-        None => format!("SELECT * FROM projects ORDER BY {} DESC", sort_col),
+    let mut conditions: Vec<&str> = Vec::new();
+    let mut params: Vec<Value> = Vec::new();
+
+    if let Some(q) = query.as_deref().map(str::trim).filter(|q| !q.is_empty()) {
+        let pattern = format!("%{}%", escape_like(&q.to_lowercase()));
+        conditions.push(
+            "(LOWER(repo_name) LIKE ? ESCAPE '\\' OR LOWER(COALESCE(description, '')) LIKE ? ESCAPE '\\' OR LOWER(COALESCE(hn_title, '')) LIKE ? ESCAPE '\\')",
+        );
+        params.push(Value::from(pattern.clone()));
+        params.push(Value::from(pattern.clone()));
+        params.push(Value::from(pattern));
+    }
+
+    match filter.as_deref() {
+        Some("all") | None => {}
+        Some("unknown") => conditions.push("language IS NULL"),
+        Some("c") => conditions.push("language IN ('C', 'C++')"),
+        Some(lang) => {
+            conditions.push("LOWER(language) = ?");
+            params.push(Value::from(lang.to_lowercase()));
+        }
+    }
+
+    let where_sql = if conditions.is_empty() {
+        String::new()
+    } else {
+        format!(" WHERE {}", conditions.join(" AND "))
     };
+    let limit = limit.unwrap_or(100).clamp(1, 500);
+    params.push(Value::from(limit));
+
+    let sql = format!(
+        "SELECT * FROM projects{} ORDER BY {} DESC LIMIT ?",
+        where_sql, sort_col
+    );
     let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
     let rows: rusqlite::Result<Vec<Project>> = stmt
-        .query_map([], row_to_project)
+        .query_map(params_from_iter(params.iter()), row_to_project)
         .map_err(|e| e.to_string())?
         .collect();
     rows.map_err(|e| e.to_string())

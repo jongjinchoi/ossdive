@@ -37,8 +37,12 @@ export interface Stats {
   collected_at_range: DateRange | null
 }
 
+export type SortField = 'hn_score' | 'stars' | 'last_commit_at' | 'collected_at' | 'hn_created_at'
+
 export interface ListOpts {
-  sort_by?: 'hn_score' | 'stars' | 'last_commit_at' | 'collected_at' | 'hn_created_at'
+  sort_by?: SortField
+  query?: string
+  filter?: string
   limit?: number
 }
 

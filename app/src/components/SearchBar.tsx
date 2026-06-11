@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react"
+import type { SortField } from "../lib/types"
 
-const SORT_OPTIONS = [
+const SORT_OPTIONS: { key: SortField; label: string }[] = [
   { key: "hn_created_at",  label: "Newest" },
   { key: "hn_score",       label: "HN Score" },
   { key: "stars",          label: "Stars" },
@@ -10,8 +11,8 @@ const SORT_OPTIONS = [
 interface SearchBarProps {
   value: string
   onChange: (v: string) => void
-  sort: string
-  onSortChange: (s: string) => void
+  sort: SortField
+  onSortChange: (s: SortField) => void
 }
 
 export function SearchBar({ value, onChange, sort, onSortChange }: SearchBarProps) {
